@@ -1,0 +1,567 @@
+[
+  {
+    "record_id": "SYNTH-0000-F6BED0",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "EG",
+    "quantity_tonnes": 41.88,
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0001-BDCE60",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "EG",
+    "quantity_tonnes": 188.55,
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0002-75C17C",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 36.59,
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0003-2F532F",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "TR",
+    "quantity_tonnes": 447.09,
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0004-84CE8E",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "TR",
+    "quantity_tonnes": 373.66,
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0005-934DF4",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 69.31,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0006-1028F1",
+    "document_type": "mill_certificate",
+    "difficulty": "hard",
+    "sector": "aluminium",
+    "country": "AE",
+    "quantity_tonnes": 403.36,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual",
+      "direct_emissions_actual"
+    ]
+  },
+  {
+    "record_id": "SYNTH-0007-211732",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "MA",
+    "quantity_tonnes": 391.46,
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0008-0E93C3",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "EG",
+    "quantity_tonnes": 55.3,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0009-075285",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 427.43,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0010-50D542",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 333.84,
+    "production_route": "EAF_DRI",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0011-16C492",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "IN",
+    "quantity_tonnes": 253.02,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0012-B24BF1",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 48.39,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0013-AFC38E",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "TN",
+    "quantity_tonnes": 227.43,
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0014-950D4D",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 92.5,
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0015-A691FF",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 326.67,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0016-0192AD",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 51.75,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0017-07A1A9",
+    "document_type": "customs_declaration",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "MA",
+    "quantity_tonnes": 392.45,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0018-68C75A",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "MA",
+    "quantity_tonnes": 262.73,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0019-F1363D",
+    "document_type": "customs_declaration",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 331.41,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0020-D4266C",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 415.75,
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0021-C5C6E6",
+    "document_type": "customs_declaration",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 468.34,
+    "production_route": "EAF_DRI",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual"
+    ]
+  },
+  {
+    "record_id": "SYNTH-0022-D4BD0A",
+    "document_type": "mill_certificate",
+    "difficulty": "hard",
+    "sector": "aluminium",
+    "country": "NO",
+    "quantity_tonnes": 161.38,
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0023-785E35",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "IS",
+    "quantity_tonnes": 124.28,
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0024-188FE4",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 55.55,
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0025-8531E4",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 340.44,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0026-CBBC1A",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "NO",
+    "quantity_tonnes": 370.8,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0027-47278A",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "CN",
+    "quantity_tonnes": 462.78,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0028-21CB9E",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "NO",
+    "quantity_tonnes": 466.85,
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0029-F4988C",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 120.16,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0030-2BFEB2",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "MA",
+    "quantity_tonnes": 327.71,
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0031-477D3E",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 57.11,
+    "production_route": "EAF_DRI",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0032-F54CD1",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "IN",
+    "quantity_tonnes": 45.69,
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0033-A68FD0",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 199.85,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0034-32E5AE",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 287.76,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0035-214B37",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "NO",
+    "quantity_tonnes": 54.06,
+    "production_route": "primary_electrolysis",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0036-CC2208",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 71.6,
+    "production_route": "EAF_DRI",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0037-F2C81C",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 241.55,
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0038-E15CB4",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "IN",
+    "quantity_tonnes": 151.95,
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0039-065F9E",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "EG",
+    "quantity_tonnes": 403.17,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0040-A4CA61",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "aluminium",
+    "country": "IN",
+    "quantity_tonnes": 42.64,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0041-2536EE",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "MA",
+    "quantity_tonnes": 298.87,
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0042-70D17A",
+    "document_type": "mill_certificate",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "BR",
+    "quantity_tonnes": 52.05,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual"
+    ]
+  },
+  {
+    "record_id": "SYNTH-0043-32EC34",
+    "document_type": "mill_certificate",
+    "difficulty": "medium",
+    "sector": "aluminium",
+    "country": "TN",
+    "quantity_tonnes": 301.8,
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0044-BFE4DA",
+    "document_type": "mill_certificate",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "CN",
+    "quantity_tonnes": 212.21,
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0045-20DA21",
+    "document_type": "carbon_intensity_report",
+    "difficulty": "hard",
+    "sector": "aluminium",
+    "country": "IS",
+    "quantity_tonnes": 160.65,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual"
+    ]
+  },
+  {
+    "record_id": "SYNTH-0046-3B830F",
+    "document_type": "customs_declaration",
+    "difficulty": "medium",
+    "sector": "aluminium",
+    "country": "AE",
+    "quantity_tonnes": 242.29,
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0047-B881EC",
+    "document_type": "mill_certificate",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "TR",
+    "quantity_tonnes": 344.62,
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual",
+      "direct_emissions_actual"
+    ]
+  },
+  {
+    "record_id": "SYNTH-0048-5CDE59",
+    "document_type": "customs_declaration",
+    "difficulty": "easy",
+    "sector": "steel",
+    "country": "MA",
+    "quantity_tonnes": 42.21,
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "missing_fields": []
+  },
+  {
+    "record_id": "SYNTH-0049-F226DA",
+    "document_type": "mill_certificate",
+    "difficulty": "hard",
+    "sector": "steel",
+    "country": "UA",
+    "quantity_tonnes": 334.51,
+    "production_route": "EAF_DRI",
+    "data_source": "actual",
+    "missing_fields": [
+      "indirect_emissions_actual",
+      "direct_emissions_actual"
+    ]
+  }
+]

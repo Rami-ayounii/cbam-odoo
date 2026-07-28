@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0041-2536EE",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-4384-IO\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : SIMETAL Morocco Casablanca\nCountry  : Morocco (MA)\nSector   : Steel\nProduction route: BF-BOF\n\nEMISSIONS DATA\n\n\n\nMonitoring approach: Third-party verified monitoring plan — see annex\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Michelle Jacobs\nDate  : 2026-07-27\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7308.90.99",
+    "description": "Structures and parts thereof (bridges, towers, masts)",
+    "sector": "steel",
+    "quantity_tonnes": 298.87,
+    "installation_name": "SIMETAL Morocco Casablanca",
+    "installation_country": "MA",
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

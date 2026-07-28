@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0020-D4266C",
+  "document_type": "mill_certificate",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-3248-AJA\nDate           : 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : ArcelorMittal Kryvyi Rih\nCountry  : Ukraine (UA)\nAddress  : 8404 Monroe Prairie Suite 278, Reedside, WV 71729\n\nPRODUCT IDENTIFICATION\nCN Code      : 7208.25.00\nDescription  : Flat-rolled products of iron, hot-rolled, width ≥600mm\nHeat / Batch : H-131712\nGrade        : S355JR\nStandard     : EN 10025-2:2019\n\nQUANTITY\nNet mass : 415.75 t\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nC: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\nMECHANICAL PROPERTIES\nYield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Timothy Kane\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7208.25.00",
+    "description": "Flat-rolled products of iron, hot-rolled, width ≥600mm",
+    "sector": "steel",
+    "quantity_tonnes": 415.75,
+    "installation_name": "ArcelorMittal Kryvyi Rih",
+    "installation_country": "UA",
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

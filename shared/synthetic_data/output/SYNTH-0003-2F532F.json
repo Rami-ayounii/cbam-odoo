@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0003-2F532F",
+  "document_type": "mill_certificate",
+  "difficulty": "medium",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-7242-PVJ\nDate           : 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : Eregli Iron and Steel Works\nCountry  : Turkey (TR)\nAddress  : 184 Rodriguez Mews, South Aaron, VA 94830\n\nPRODUCT IDENTIFICATION\nCN Code      : 7216.10.00\nDescription  : Angles, shapes and sections of iron — L-sections\nHeat / Batch : H-849696\nGrade        : S355JR\nStandard     : EN 10025-2:2019\n\nQUANTITY\nNet mass : 447090.0 kg\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nC: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\nMECHANICAL PROPERTIES\nYield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Jonathan White\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7216.10.00",
+    "description": "Angles, shapes and sections of iron — L-sections",
+    "sector": "steel",
+    "quantity_tonnes": 447.09,
+    "installation_name": "Eregli Iron and Steel Works",
+    "installation_country": "TR",
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

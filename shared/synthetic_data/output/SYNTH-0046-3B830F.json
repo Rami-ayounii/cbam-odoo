@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0046-3B830F",
+  "document_type": "customs_declaration",
+  "difficulty": "medium",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-4375-758441\nDate of acceptance: 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Daniels, Huang and Foster SRL\nAddress : 0415 Douglas Summit, Lewisside, KY 74165\nEORI    : EU42199330833016\n\nGOODS\nTariff heading : 76042910  (combined nomenclature)\nDescription : Hollow profiles of aluminium alloys\nNet mass    : 242.29 tonnes\nCustoms value: EUR 137,104.64\n\nORIGIN\nCountry of origin : UAE (AE)\nExporter / Manufacturer: Emirates Global Aluminium\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7604.29.10",
+    "description": "Hollow profiles of aluminium alloys",
+    "sector": "aluminium",
+    "quantity_tonnes": 242.29,
+    "installation_name": "Emirates Global Aluminium",
+    "installation_country": "AE",
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.248,
+    "indirect_emissions_actual": 0.415,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

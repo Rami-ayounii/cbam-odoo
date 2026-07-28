@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0035-214B37",
+  "document_type": "customs_declaration",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-4688-623924\nDate of acceptance: 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Castillo, Watson and Villa SRL\nAddress : 1247 Mariah Course, Port Shannon, MI 03996\nEORI    : EU60685361530515\n\nGOODS\nCN Code     : 7601.10.00\nDescription : Unwrought aluminium, not alloyed\nNet mass    : 54.06 tonnes\nCustoms value: EUR 82,324.53\n\nORIGIN\nCountry of origin : Norway (NO)\nExporter / Manufacturer: Hydro Husnes Aluminium\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7601.10.00",
+    "description": "Unwrought aluminium, not alloyed",
+    "sector": "aluminium",
+    "quantity_tonnes": 54.06,
+    "installation_name": "Hydro Husnes Aluminium",
+    "installation_country": "NO",
+    "production_route": "primary_electrolysis",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 62.67,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

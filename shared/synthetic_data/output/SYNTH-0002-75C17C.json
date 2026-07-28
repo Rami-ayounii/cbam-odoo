@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0002-75C17C",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-7648-OR\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Tata Steel Jamshedpur\nCountry  : India (IN)\nSector   : Steel\nProduction route: BF-BOF\n\nEMISSIONS DATA\n\n\n\nMonitoring approach: Third-party verified monitoring plan — see annex\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Emily Rios\nDate  : 2026-07-27\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7213.10.00",
+    "description": "Bars and rods, hot-rolled, in irregularly wound coils",
+    "sector": "steel",
+    "quantity_tonnes": 36.59,
+    "installation_name": "Tata Steel Jamshedpur",
+    "installation_country": "IN",
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

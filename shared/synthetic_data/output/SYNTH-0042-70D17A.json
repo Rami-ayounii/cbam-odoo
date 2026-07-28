@@ -1,0 +1,24 @@
+{
+  "record_id": "SYNTH-0042-70D17A",
+  "document_type": "mill_certificate",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\n    MILL TEST CERTIFICATE — EN 10204 TYPE 3.1\n    Certificate No : CERT-0010-PXK\n    Date           : 2026-07-27\n    ══════════════════════════════════════════════════════════════════\n\n    MANUFACTURER\n    Name     : Companhia Siderurgica Nacional\n    Country  : Brazil (BR)\n    Address  : 5562 Robertson Coves, Johnville, KY 59430\n\n    PRODUCT IDENTIFICATION\n    CN Code      : 7304.11.00\n    Description  : Line pipe of a kind used for oil or gas pipelines (seamless)\n    Heat / Batch : H-439690\n    Grade        : S355JR\n    Standard     : EN 10025-2:2019\n\n    QUANTITY\n    Net mass : 52.05 t\n\n    CHEMICAL COMPOSITION (% by mass, ladle analysis)\n    C: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\n    MECHANICAL PROPERTIES\n    Yield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\nCARBON INTENSITY DECLARATION (CBAM Annex III)\nProduction route          : EAF_scrap\nDirect embedded emissions : 0.351 tCO2e/t\n\n    ══════════════════════════════════════════════════════════════════\n    Authorised Signatory: Brent Roberts\n    This certificate is issued in accordance with EN 10204:2004.\n    ══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7304.11.00",
+    "description": "Line pipe of a kind used for oil or gas pipelines (seamless)",
+    "sector": "steel",
+    "quantity_tonnes": 52.05,
+    "installation_name": "Companhia Siderurgica Nacional",
+    "installation_country": "BR",
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.351,
+    "indirect_emissions_actual": 0.369,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": [
+      "indirect_emissions_actual"
+    ]
+  }
+}

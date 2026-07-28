@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0048-5CDE59",
+  "document_type": "customs_declaration",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-5304-637454\nDate of acceptance: 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Berry, Green and Ward SRL\nAddress : 4268 Vaughn Route, Michaelbury, IN 18008\nEORI    : EU72795687833918\n\nGOODS\nCN Code     : 7214.20.00\nDescription : Other bars and rods of iron, forged\nNet mass    : 42.21 tonnes\nCustoms value: EUR 33,661.29\n\nORIGIN\nCountry of origin : Morocco (MA)\nExporter / Manufacturer: SIMETAL Morocco Casablanca\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7214.20.00",
+    "description": "Other bars and rods of iron, forged",
+    "sector": "steel",
+    "quantity_tonnes": 42.21,
+    "installation_name": "SIMETAL Morocco Casablanca",
+    "installation_country": "MA",
+    "production_route": "EAF_DRI",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0019-F1363D",
+  "document_type": "customs_declaration",
+  "difficulty": "medium",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-9671-756551\nDate of acceptance: 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Jenkins-Simpson SRL\nAddress : 071 King Crescent Suite 808, Gutierrezborough, NC 47920\nEORI    : EU97703482477109\n\nGOODS\nTariff heading : 72171010  (combined nomenclature)\nDescription : Wire of iron or non-alloy steel, not plated\nNet mass    : 331.41 tonnes\nCustoms value: EUR 239,377.31\n\nORIGIN\nCountry of origin : Brazil (BR)\nExporter / Manufacturer: Companhia Siderurgica Nacional\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7217.10.10",
+    "description": "Wire of iron or non-alloy steel, not plated",
+    "sector": "steel",
+    "quantity_tonnes": 331.41,
+    "installation_name": "Companhia Siderurgica Nacional",
+    "installation_country": "BR",
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "direct_emissions_actual": 2.061,
+    "indirect_emissions_actual": 0.061,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

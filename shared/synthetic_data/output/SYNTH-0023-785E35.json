@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0023-785E35",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-2104-YC\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : ISAL Aluminium Iceland\nCountry  : Iceland (IS)\nSector   : Aluminium\nProduction route: primary_electrolysis\n\nEMISSIONS DATA\nDirect embedded emissions  : 0.632 tCO2e / tonne of product\nIndirect embedded emissions: 6.073 tCO2e / tonne of product\nCarbon price paid at origin: 54.28 EUR/tCO2e (ETS compliance)\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Joshua Mata\nDate  : 2026-07-27\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7604.29.10",
+    "description": "Hollow profiles of aluminium alloys",
+    "sector": "aluminium",
+    "quantity_tonnes": 124.28,
+    "installation_name": "ISAL Aluminium Iceland",
+    "installation_country": "IS",
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.632,
+    "indirect_emissions_actual": 6.073,
+    "carbon_price_paid_origin": 54.28,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "record_id": "SYNTH-0047-B881EC",
+  "document_type": "mill_certificate",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-5712-AJK\nDate           : 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : Kardemir Integrated Iron\nCountry  : Turkey (TR)\nAddress  : 4788 Small Dale, Nelsonville, MA 21799\n\nPRODUCT IDENTIFICATION\nCN Code      : 7207.11.11\nDescription  : Semi-finished products of iron, square cross-section\nHeat / Batch : H-677345\nGrade        : S355JR\nStandard     : EN 10025-2:2019\n\nQUANTITY\nNet mass : 344.62 t\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nC: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\nMECHANICAL PROPERTIES\nYield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Mariah Higgins\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7207.11.11",
+    "description": "Semi-finished products of iron, square cross-section",
+    "sector": "steel",
+    "quantity_tonnes": 344.62,
+    "installation_name": "Kardemir Integrated Iron",
+    "installation_country": "TR",
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.436,
+    "indirect_emissions_actual": 0.448,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": [
+      "indirect_emissions_actual",
+      "direct_emissions_actual"
+    ]
+  }
+}

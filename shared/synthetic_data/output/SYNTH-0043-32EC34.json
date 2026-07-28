@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0043-32EC34",
+  "document_type": "mill_certificate",
+  "difficulty": "medium",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-6963-KUK\nDate           : 2026-07-27\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : ALCOM Tunisia Tunis\nCountry  : Tunisia (TN)\nAddress  : 8016 Nicole Stream Suite 650, Williamsside, ID 48017\n\nPRODUCT IDENTIFICATION\nCN Code      : 7610.10.00\nDescription  : Doors, windows and their frames of aluminium\nHeat / Batch : H-532787\nGrade        : EN AW-6060\nStandard     : EN 573-3:2019\n\nQUANTITY\nNet mass : 301800.0 kg\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nSi: 0.45  Mg: 0.52  Fe: 0.21  Cu: 0.08  Mn: 0.06  Cr: 0.04\n\nMECHANICAL PROPERTIES\n0.2% proof stress: 195 MPa   Tensile strength: 225 MPa   Elongation: 11%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Angel Gordon\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7610.10.00",
+    "description": "Doors, windows and their frames of aluminium",
+    "sector": "aluminium",
+    "quantity_tonnes": 301.8,
+    "installation_name": "ALCOM Tunisia Tunis",
+    "installation_country": "TN",
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}
