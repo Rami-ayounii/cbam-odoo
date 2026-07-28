@@ -1,0 +1,34 @@
+# Environment / secrets — never commit these
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+
+# Odoo
+*.pyc
+odoo.conf
+
+# Docker volumes / data
+postgres-data/
+odoo-data/
+ollama-models/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp

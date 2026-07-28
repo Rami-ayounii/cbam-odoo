@@ -1,0 +1,79 @@
+services:
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: machineB-tailscale
+    hostname: cbam-machineB
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    container_name: machineB-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-odoo}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    # Postgres listens only on the internal Docker bridge — not exposed on tailnet
+    networks:
+      - internal
+
+  odoo:
+    image: odoo:17
+    container_name: machineB-odoo
+    depends_on:
+      - db
+    environment:
+      - HOST=db
+      - USER=${POSTGRES_USER:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons:ro
+    # Odoo listens on port 8069; share the tailscale network so it is reachable
+    # on the tailnet at cbam-machineB:8069 (adjust ACLs as needed for dev access)
+    network_mode: service:tailscale
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: machineB-orchestrator
+    depends_on:
+      - odoo
+      - tailscale
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}       # e.g. http://<machineA-tailscale-ip>:8443
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
+      - ODOO_URL=http://127.0.0.1:8069
+      - ODOO_DB=${ODOO_DB:-cbam}
+      - ODOO_USER=${ODOO_USER:-admin}
+      - ODOO_PASSWORD=${ODOO_PASSWORD}
+      - LLM_MODEL=${LLM_MODEL:-qwen2.5:7b-instruct}
+      - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-9}
+    network_mode: service:tailscale
+    restart: unless-stopped
+    # Orchestrator is a placeholder until M6 — build will fail gracefully until
+    # machineB/orchestrator/Dockerfile exists
+
+volumes:
+  tailscale-state:
+  postgres-data:
+  odoo-data:
+
+networks:
+  internal:
+    driver: bridge

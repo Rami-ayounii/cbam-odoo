@@ -1,0 +1,36 @@
+events {
+    worker_connections 64;
+}
+
+http {
+    # Rate limiting: 10 requests/second per IP, burst of 20
+    limit_req_zone $binary_remote_addr zone=ollama_limit:10m rate=10r/s;
+
+    server {
+        listen 8443;
+        server_name _;
+
+        # Reject any request missing a valid API key
+        set $api_key_valid 0;
+        if ($http_x_api_key = "${OLLAMA_API_KEY}") {
+            set $api_key_valid 1;
+        }
+        if ($api_key_valid = 0) {
+            return 401 '{"error":"Unauthorized: missing or invalid X-Api-Key"}\n';
+        }
+
+        limit_req zone=ollama_limit burst=20 nodelay;
+
+        location / {
+            proxy_pass http://127.0.0.1:11434;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+
+            # Support streaming responses (token-by-token output)
+            proxy_buffering off;
+            proxy_read_timeout 300s;
+            proxy_send_timeout 300s;
+            chunked_transfer_encoding on;
+        }
+    }
+}

@@ -1,0 +1,52 @@
+services:
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: machineA-tailscale
+    hostname: cbam-machineA
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: machineA-ollama
+    network_mode: service:tailscale
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    restart: unless-stopped
+    # GPU support — uncomment if NVIDIA GPU is present and nvidia-container-toolkit is installed:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  nginx:
+    image: nginx:latest
+    container_name: machineA-nginx
+    network_mode: service:tailscale
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      - ollama
+      - tailscale
+    restart: unless-stopped
+    # nginx listens on port 8443 (TLS termination handled at the tailscale/firewall layer;
+    # nginx itself listens plain HTTP on 8443 — acceptable on a private tailnet)
+
+volumes:
+  tailscale-state:
+  ollama-models:

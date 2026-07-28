@@ -1,0 +1,28 @@
+{
+  "// comment": "Tailscale ACL for the CBAM project. Machine B may reach Machine A on port 8443 only. No reverse access. Adjust tags to match your actual Tailscale account setup.",
+
+  "tagOwners": {
+    "tag:cbam-llm-host":  ["autogroup:owner"],
+    "tag:cbam-odoo-host": ["autogroup:owner"]
+  },
+
+  "acls": [
+    {
+      "action": "accept",
+      "src":    ["tag:cbam-odoo-host"],
+      "dst":    ["tag:cbam-llm-host:8443"],
+      "proto":  "tcp"
+    }
+  ],
+
+  "tests": [
+    {
+      "src":    "tag:cbam-odoo-host",
+      "accept": ["tag:cbam-llm-host:8443"]
+    },
+    {
+      "src":    "tag:cbam-llm-host",
+      "deny":   ["tag:cbam-odoo-host:8069", "tag:cbam-odoo-host:5432"]
+    }
+  ]
+}

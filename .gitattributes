@@ -1,0 +1,7 @@
+# Normalize line endings to LF on commit (Linux target for all Docker configs)
+* text=auto eol=lf
+
+# Binary files — no normalization
+*.png binary
+*.jpg binary
+*.pdf binary
