@@ -1,0 +1,14 @@
+{
+    "name": "flag_for_human_review",
+    "description": "Escalates the current declaration line to human review and ends the agent loop for this line. Use when the model cannot converge on a confident final answer, when check_consistency keeps returning blocking issues, or after the iteration cap is reached.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "reason": {
+                "type": "string",
+                "description": "Why this line needs human review."
+            }
+        },
+        "required": ["reason"]
+    }
+}

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Config models get Odoo's default generated views - simple reference
+         data entry only, not part of the M3 view spec but needed so the
+         Many2one fields above (good_id, installation_id, emission_factor_id)
+         have something to select. -->
+    <record id="action_cbam_production_route" model="ir.actions.act_window">
+        <field name="name">Production Routes</field>
+        <field name="res_model">cbam.production.route</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="action_cbam_installation" model="ir.actions.act_window">
+        <field name="name">Installations</field>
+        <field name="res_model">cbam.installation</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="action_cbam_good" model="ir.actions.act_window">
+        <field name="name">Goods</field>
+        <field name="res_model">cbam.good</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="action_cbam_emission_factor" model="ir.actions.act_window">
+        <field name="name">Emission Factors</field>
+        <field name="res_model">cbam.emission.factor</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="action_cbam_year_parameter" model="ir.actions.act_window">
+        <field name="name">Year Parameters</field>
+        <field name="res_model">cbam.year.parameter</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem id="menu_cbam_root" name="CBAM" sequence="10"/>
+
+    <menuitem id="menu_cbam_declaration"
+              name="Declarations"
+              parent="menu_cbam_root"
+              action="action_cbam_declaration"
+              sequence="10"/>
+
+    <menuitem id="menu_cbam_declaration_line"
+              name="Declaration Lines"
+              parent="menu_cbam_root"
+              action="action_cbam_declaration_line"
+              sequence="20"/>
+
+    <menuitem id="menu_cbam_source_document"
+              name="Source Documents"
+              parent="menu_cbam_root"
+              action="action_cbam_source_document"
+              sequence="30"/>
+
+    <menuitem id="menu_cbam_configuration"
+              name="Configuration"
+              parent="menu_cbam_root"
+              sequence="90"/>
+
+    <menuitem id="menu_cbam_installation"
+              name="Installations"
+              parent="menu_cbam_configuration"
+              action="action_cbam_installation"
+              sequence="10"/>
+
+    <menuitem id="menu_cbam_good"
+              name="Goods"
+              parent="menu_cbam_configuration"
+              action="action_cbam_good"
+              sequence="20"/>
+
+    <menuitem id="menu_cbam_production_route"
+              name="Production Routes"
+              parent="menu_cbam_configuration"
+              action="action_cbam_production_route"
+              sequence="30"/>
+
+    <menuitem id="menu_cbam_emission_factor"
+              name="Emission Factors"
+              parent="menu_cbam_configuration"
+              action="action_cbam_emission_factor"
+              sequence="40"/>
+
+    <menuitem id="menu_cbam_year_parameter"
+              name="Year Parameters"
+              parent="menu_cbam_configuration"
+              action="action_cbam_year_parameter"
+              sequence="50"/>
+
+</odoo>

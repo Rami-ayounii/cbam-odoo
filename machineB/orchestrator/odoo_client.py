@@ -1,0 +1,97 @@
+"""odoorpc-based Odoo access for the orchestrator.
+
+NOT RUNTIME-VERIFIED: no live Odoo instance is available in this dev
+environment (no Docker/odoorpc target to connect to). This has only been
+statically checked (py_compile), matching the same caveat as M3.
+
+Read-only everywhere except write_declaration_line - the loop's single
+validated write at the end (projecthandoff.md section 7: "Read-only access
+to Odoo during the loop. Single write at the end.").
+
+Imports calc_engine as a bare module (not `cbam.utils.calc_engine`) for the
+same reason as tools.py: this process has no Odoo package installed.
+"""
+
+import base64
+
+import odoorpc
+
+from calc_engine import MAX_SOURCE_DOCUMENT_BYTES, emission_factor_from_record
+
+
+class OdoorpcEmissionFactorSession:
+    """get_emission_factors(...) duck-type for calc_engine.lookup_emission_factor,
+    backed by an odoorpc connection - the orchestrator talks to Odoo over
+    RPC, it is not an Odoo addon running inside the same process as M3's
+    OdooEmissionFactorSession (which uses the in-process ORM env)."""
+
+    def __init__(self, odoo):
+        self._odoo = odoo
+
+    def get_emission_factors(self, sector, route, country):
+        model = self._odoo.env["cbam.emission.factor"]
+        ids = model.search(
+            [
+                ("sector", "=", sector),
+                ("production_route_id.code", "=", route),
+                ("country", "=", country),
+            ]
+        )
+        return [emission_factor_from_record(record) for record in model.browse(ids)]
+
+
+class OdooClient:
+    def __init__(self, host, port, db, login, password, protocol="jsonrpc+ssl"):
+        self._odoo = odoorpc.ODOO(host, protocol=protocol, port=port)
+        self._odoo.login(db, login, password)
+
+    def get_source_document_text(self, document_id, expected_declaration_line_id):
+        # Synthetic data (M1) is plain text, so a direct utf-8 decode of the
+        # attachment is correct for current scope. Real scanned/image
+        # documents would need OCR/PDF text-layer extraction added here -
+        # out of scope until real (non-synthetic) documents are in play.
+        model = self._odoo.env["cbam.source.document"]
+        record = model.browse(int(document_id))
+        # Ownership check: this RPC session authenticates as a single
+        # privileged Odoo user (ODOO_USER), so it is never subject to the
+        # declarant-scoped ir.rule records - this is the only thing
+        # preventing an LLM-supplied document_id from leaking another
+        # declarant's document text into this job's context.
+        if record.declaration_line_id.id != expected_declaration_line_id:
+            raise ValueError(
+                f"document {document_id} does not belong to this job's "
+                "declaration line"
+            )
+        if not record.attachment:
+            return ""
+        raw = base64.b64decode(record.attachment)
+        # Independent of cbam_source_document.py's own upload-time
+        # constraint - this is the actual boundary that feeds the decoded
+        # text into the LLM's prompt, so it caps regardless of whether the
+        # record got here via the addon's validated create/write path.
+        if len(raw) > MAX_SOURCE_DOCUMENT_BYTES:
+            raise ValueError(
+                f"document {document_id} attachment is {len(raw)} bytes, "
+                f"exceeding the {MAX_SOURCE_DOCUMENT_BYTES}-byte cap - "
+                "refusing to feed this into the LLM's context"
+            )
+        return raw.decode("utf-8", errors="replace")
+
+    def get_emission_factor_session(self):
+        return OdoorpcEmissionFactorSession(self._odoo)
+
+    def write_declaration_line(self, **data):
+        model = self._odoo.env["cbam.declaration.line"]
+        return model.create(data)
+
+    def write_llm_trace(self, declaration_line_id, messages, extraction_status):
+        # The intended audit trail (cbam_source_document.raw_llm_output) was
+        # defined but never written to anywhere - without this, there is no
+        # way to reconstruct what tool calls the LLM actually made for a
+        # given job after the fact.
+        model = self._odoo.env["cbam.source.document"]
+        ids = model.search([("declaration_line_id", "=", declaration_line_id)])
+        if ids:
+            model.write(
+                ids, {"raw_llm_output": messages, "extraction_status": extraction_status}
+            )

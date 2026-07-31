@@ -1,0 +1,397 @@
+# CBAM Project — Progress Tracker
+
+*Academic project: Odoo 17 + Agentic LLM (Ollama) for EU Carbon Border Adjustment Mechanism declarations.*
+*Last updated: 2026-07-30*
+
+---
+
+## Quick Status
+
+| Milestone | Status | Commit |
+|-----------|--------|--------|
+| M0 — Repo scaffold & networking | **Done** | `16ec5ec` |
+| M1 — Synthetic data generator | **Done** | `58c4baa` |
+| M2 — Calculation engine | **Done** | pending commit |
+| M3 — Odoo module (`cbam`) | **Done, unverified** | pending commit |
+| M4 — LLM inference container (Machine A) | **Blocked** (no Docker/GPU in this sandbox) | — |
+| M5 — Tool schemas | **Done** | pending commit |
+| M6 — Orchestrator agent loop | **Done, unverified live** | pending commit |
+| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | pending commit |
+| M8 — Security hardening | **Done** | pending commit |
+| M9 — Evaluation | **Harness done, real run blocked** | pending commit |
+
+---
+
+## What Is Built
+
+### M0 — Repo scaffold & networking (commit `16ec5ec`)
+
+**Files created:**
+- `machineA/docker-compose.yml` — Ollama + nginx sidecar on Tailscale network
+- `machineA/nginx.conf.template` — API-key gate (`X-Api-Key` header), rate limiting (10 r/s), streaming proxy (no buffering)
+- `machineB/docker-compose.yml` — Odoo 17 + PostgreSQL 16 + orchestrator placeholder on Tailscale network
+- `machineA/.env.example` / `machineB/.env.example` — document all required secrets
+- `tailscale-acl-example.json` — ACL restricting Machine B → Machine A:8443 TCP only (blocks reverse)
+- `.gitignore` / `.gitattributes` — excludes secrets and data volumes; normalises line endings to LF
+
+**Key decisions locked in:**
+- Tailscale sidecar container pattern: all app containers use `network_mode: service:tailscale`
+- nginx uses `nginx.conf.template` → Docker image runs `envsubst` at startup to inject `${OLLAMA_API_KEY}`
+- PostgreSQL is on an internal Docker network only (not exposed to Tailscale)
+- All secrets via `.env` (never committed)
+
+**Not yet done in M0:** Tailscale mesh verification (needs actual machines).
+
+---
+
+### M1 — Synthetic data generator (commit `58c4baa`)
+
+**Files created:**
+- `shared/synthetic_data/generator.py` — Faker + numpy generator producing three document types
+- `shared/synthetic_data/requirements.txt` — `faker>=24.0.0`, `numpy>=1.26.0`
+- `shared/synthetic_data/output/` — 50 JSON records (`SYNTH-NNNN-XXXXXX.json`) + `index.json`
+
+**What the generator produces:**
+- **Three document types:** EN 10204 mill certificate (steel), CBAM carbon intensity report, SAD customs declaration
+- **Three difficulty levels:** easy (all fields in plain text), medium (quantity in kg not tonnes), hard (some fields absent from the document)
+- **Ground-truth labels** stored per record (14 fields incl. `direct_emissions_actual`, `indirect_emissions_actual`, `carbon_price_paid_origin`, `missing_fields`) — used for M9 evaluation
+- **Boundary-case seeding:** every 8th record has quantity near 50 t (exemption threshold)
+- **CLI:** `python generator.py --count 50 --seed 42 --outdir output/`
+
+**Note:** Emission ranges in the generator are approximate (for realistic-looking documents only). Authoritative JRC134682 values go into the versioned `cbam.emission_factor` table in M7.
+
+---
+
+### Research artifact — CBAM formulas (not a milestone, no commit yet)
+
+**File:** `CBAM_Formulas_Steel_Aluminium.md`
+
+Comprehensive reference sheet compiled July 2026 covering:
+- General CBAM formulas (embedded emissions, SEE, direct/indirect split)
+- Steel sector: sinter plant, blast furnace, BOF, EAF, DRI, downstream products (all with exact mass-balance equations)
+- Aluminium sector: primary Al CO2 (anode consumption), PFC emissions (CF4/C2F6 slope + overvoltage methods), secondary Al, downstream products
+- Certificate calculation formula (SEE → certificates, with benchmark deduction and carbon price adjustment)
+- Legal basis: Reg 2023/956, IR 2023/1773, IR 2025/2547, IR 2025/2620/2621, EU ETS MRR 2018/2066
+
+**This document directly unblocks M2 (calc engine) and M7 (emission factor seeding).**
+
+---
+
+## What Comes Next
+
+### M2 — Calculation engine (built 2026-07-30, pending commit)
+
+**Files created:**
+- `machineB/addons/cbam/utils/calc_engine.py` — the four functions below, plus `EmissionFactor` dataclass
+- `machineB/tests/test_calc_engine.py` — 15 tests, all passing
+- `machineB/tests/conftest.py` — adds `machineB/addons` to `sys.path` so tests import `cbam.utils.calc_engine` without the Odoo module needing a manifest yet
+- `machineB/addons/cbam/__init__.py`, `machineB/addons/cbam/utils/__init__.py` — package markers (M3 will add `__manifest__.py` alongside)
+- `machineB/requirements-dev.txt` — `pytest>=8.0.0`
+
+**Functions implemented:**
+
+```python
+calculate_embedded_emissions(quantity_tonnes, direct_ef, indirect_ef, precursor_emissions) -> float
+# SEE = direct_ef + indirect_ef; result = quantity_tonnes * SEE + precursor_emissions
+
+calculate_certificates_required(
+    embedded_emissions_total: float,   # t CO2e
+    quantity_tonnes: float,
+    benchmark: float,                  # t CO2e/t, EU ETS free-allocation benchmark
+    cbam_factor_year: float,            # phase-out factor (2.5% 2026 -> 100% 2034)
+    carbon_price_paid_origin: float,    # EUR/t CO2e paid in exporting country
+    reference_certificate_price: float, # EUR/t CO2e, reference CBAM certificate price
+) -> float
+# N = max(embedded_emissions_total - benchmark*cbam_factor_year*quantity_tonnes, 0)
+# N_final = N * (1 - min(carbon_price_paid_origin / reference_certificate_price, 1.0)), never negative
+
+lookup_emission_factor(sector, route, country, declaration_date, db_session) -> EmissionFactor
+# db_session duck-types get_emission_factors(sector, route, country); picks the one record where
+# valid_from <= date < valid_to; raises ValueError on zero or >1 matches (overlap = bad versioned data)
+
+is_exempt(total_annual_tonnes: float) -> bool   # True if < 50 t/year
+```
+
+**Deviation from the original plan (resolved with the user before implementing):** the original
+2-arg `calculate_certificates_required(embedded_emissions_total, carbon_price_paid_origin)` signature
+was dimensionally broken — `carbon_price_paid_origin` is a EUR/t price, not a tonnes quantity, so it
+can't be subtracted from a tonnes total. Replaced with the full Art. 9/31 formula (benchmark +
+phase-out factor + reference certificate price as explicit, never-hardcoded inputs) per user's choice.
+
+**Test cases actually written** (illustrative EFs, not asserted as authoritative JRC134682 values —
+those only get baked into real records in M7):
+- Embedded emissions: direct-only steel case, precursor-inclusive downstream case, zero-quantity case
+- Certificates: no adjustment, benchmark deduction only, carbon-price deduction only, price-adjustment
+  capped at 100%, result floored at 0 when benchmark deduction exceeds the total
+- Exemption boundary: 49.9 t (exempt), 50.0 t (not exempt), 50.1 t (not exempt)
+- Versioned lookup: two non-overlapping date ranges (picks correct record either side of the
+  transition date), no match raises `ValueError`, overlapping records raise `ValueError`
+
+**Done:** `pytest machineB/tests/test_calc_engine.py -v` → 15 passed, built test-first (RED confirmed
+via `ModuleNotFoundError` before `calc_engine.py` existed, then GREEN).
+
+**Not done yet:** no commit made for this work; `benchmark`, `cbam_factor_year`, and
+`reference_certificate_price` still need a real source (JRC/EU ETS benchmark decisions, the phase-out
+schedule, and the published reference certificate price) — deferred to M7 alongside emission factors.
+
+---
+
+### M3 — Odoo module (`cbam`) (built 2026-07-30, pending commit)
+
+**IMPORTANT CAVEAT — not runtime-verified.** No Docker or Odoo installation
+is available in this dev environment, so this module has only been checked
+statically (`py_compile` on every `.py` file, `xml.dom.minidom` parse on
+every view/report XML — both clean). It has **not** been loaded into a real
+Odoo 17 instance. First thing to do once Machine B is up: `docker compose up`
+and install the module, then fix whatever the ORM registry actually
+complains about.
+
+**Files created:**
+- `machineB/addons/cbam/__manifest__.py` — depends on `base`, `mail`; no external Python packages
+- `machineB/addons/cbam/models/` — `cbam_production_route.py`, `cbam_installation.py`, `cbam_good.py`, `cbam_emission_factor.py` (versioned, with an `@api.constrains` overlap guard), `cbam_year_parameter.py` (**new, not in the original data model**), `cbam_declaration.py`, `cbam_declaration_line.py`, `cbam_source_document.py`
+- `machineB/addons/cbam/utils/odoo_adapters.py` — `OdooEmissionFactorSession`, the ORM-backed adapter `lookup_emission_factor()` needs; kept out of `calc_engine.py` so the calc engine stays Odoo-free and standalone-testable
+- `machineB/addons/cbam/security/ir.model.access.csv` — base user (mostly read + line-level write) vs. `base.group_system` (full CRUD) for all 7 models
+- `machineB/addons/cbam/views/` — `cbam_declaration_views.xml` (form embeds an editable line list with a "Lookup Default EF" button), `cbam_declaration_line_views.xml`, `cbam_source_document_views.xml`, `cbam_menus.xml` (root menu + a Configuration submenu for the 5 reference-data models, using Odoo's auto-generated views — needed so the Many2one fields have something to select, wasn't explicitly asked for but the module is unusable without it)
+- `machineB/addons/cbam/reports/cbam_declaration_report.xml` — basic QWeb PDF summary (declarant, year, status, totals, one row per line)
+
+**Data-model addition beyond `projecthandoff.md` §6 (resolved with the user
+before coding):** the original schema had no field for `benchmark`,
+`cbam_factor_year`, or `reference_certificate_price`, which M2's
+`calculate_certificates_required` needs (see M2 section above for why).
+Added:
+- `cbam.good.benchmark` — EU ETS free-allocation benchmark is per-product, so it lives on the good
+- `cbam.year.parameter` (new model) — `year`, `cbam_factor_year`, `reference_certificate_price`, `source_document`, one record per reporting year, unique-constrained on `year`
+
+**Wiring:** `cbam.declaration.line` has `embedded_emissions_total` and
+`certificates_required` as `store=True` computed fields calling
+`calc_engine.calculate_embedded_emissions` / `calculate_certificates_required`
+directly — no business logic duplicated in the model. If no
+`cbam.year.parameter` record exists yet for the declaration's reporting
+year, `certificates_required` is left at `0.0` rather than guessing (M7 will
+seed this data). `action_lookup_emission_factor()` on the line calls
+`calc_engine.lookup_emission_factor()` through the adapter to populate
+`emission_factor_id` — read-only selection, never writes a factor value.
+
+**Not done:** no commit yet; no live Odoo verification; no record rules yet
+(declarants seeing only their own declarations is M8); reference data
+(installations, goods, emission factors, year parameters) has no seed data,
+so the module is currently empty on install.
+
+---
+
+### M4 — LLM inference container (Machine A) — BLOCKED in this environment
+
+**Why blocked:** steps 1-5 below need actual Docker + a real (or at least
+present) Machine A to pull and benchmark models against. This dev sandbox
+has neither Docker nor an Ollama install (`docker --version` → command not
+found). Nothing here is a code deliverable I can produce without live
+infra - the `docker-compose.yml`/`nginx.conf.template` from M0 already
+contain everything needed to run this once real hardware is available.
+
+**Steps (unchanged from the plan, still to do on real Machine A hardware):**
+1. Bring up `machineA/docker-compose.yml`
+2. Pull candidate models: `qwen2.5:7b-instruct`, `qwen2.5:14b-instruct`, `llama3.1:8b-instruct`
+3. Benchmark tool-calling reliability (10 attempts each with a JSON tool schema) — does the model return valid JSON calls consistently?
+4. Pick the winner, document in `docs/model-benchmark.md`
+5. Verify nginx: `curl -H "X-Api-Key: wrong" https://machineA:8443/` → 401
+
+---
+
+### M5 — Tool schemas (built 2026-07-30, pending commit)
+
+**Note on the "depends on M4" in the original plan:** turned out not to be a
+real blocker - these are OpenAI-compatible function-calling JSON schemas
+(`name`/`description`/`parameters`), the same shape regardless of which
+Ollama model wins the M4 benchmark. Built ahead of M4 since M4 itself is
+blocked on hardware this sandbox doesn't have.
+
+**Files created:** all 7 in `shared/tool_schemas/`, matching `projecthandoff.md`
+§7's tool list and wired to the `cbam.declaration.line` field names from M3
+(`quantity_tonnes`, `direct_emissions_actual`, `data_source`, etc.) so
+`write_declaration_line`'s params map 1:1 onto what M6's `odoo_client.py`
+will actually write:
+- `extract_field.json`, `lookup_default_value.json`, `check_consistency.json`
+- `request_missing_data.json`, `flag_for_human_review.json`
+- `calculate_emissions.json`, `write_declaration_line.json`
+- `test_tool_schemas.py` — 23 tests: each file is valid JSON, has `name`/`description`/`parameters`, every field the dispatcher will need is actually declared `required`, no duplicate tool names, all 7 files present. Built test-first (RED confirmed: 22/23 failed before any `.json` file existed).
+
+Each schema stores the bare `{name, description, parameters}` object (per
+the plan); the orchestrator (M6) is responsible for wrapping each in
+`{"type": "function", "function": {...}}` when it builds the `tools=` list
+for `llm.chat()`, since that wrapping is a client-format detail, not part
+of the schema itself.
+
+**Done:** `pytest shared/tool_schemas/test_tool_schemas.py -v` → 23 passed.
+
+---
+
+### M6 — Orchestrator agent loop (built 2026-07-30, pending commit)
+
+**IMPORTANT CAVEAT — not runtime-verified against a real LLM or Odoo.**
+`fastapi`, `odoorpc`, `openai`, `tenacity`, `pydantic` were all installed
+into this sandbox so the code below could be exercised for real (not just
+`py_compile`), but every test fakes the LLM and Odoo boundaries - no actual
+Ollama endpoint or Odoo instance was ever contacted. M4 being blocked means
+this has never run end-to-end.
+
+**Files created (all in `machineB/orchestrator/`):**
+- `agent_loop.py` — `run_agent_loop()`, the tool-use loop from the skeleton below, generalized. Contains zero tool-ordering logic; the only name-based branch is detecting `flag_for_human_review` as a termination signal the model itself raised.
+- `tools.py` — `ToolDispatcher`, a name→handler dict (pure dispatch, not a workflow) implementing all 7 tools. `calculate_emissions` and `lookup_default_value` call `calc_engine` directly; `write_declaration_line` is the only one that calls `odoo_client.write_declaration_line()`.
+- `llm_client.py` — thin wrapper around `openai.OpenAI` pointed at Ollama's `/v1` endpoint; parses SDK responses into a small `LLMResponse`/`ToolCall` shape so `agent_loop.py` never touches the raw SDK. `@retry`-wrapped (tenacity) per the decided dependency list.
+- `odoo_client.py` — `odoorpc`-based `OdooClient` + `OdoorpcEmissionFactorSession` adapter (separate from M3's ORM-`env`-based adapter, since the orchestrator talks to Odoo over RPC from its own container). `get_source_document_text()` does a plain UTF-8 decode of the attachment - correct for M1's synthetic plain-text documents, would need real OCR/PDF-text extraction added for scanned documents (out of scope, never asked for).
+- `main.py` — FastAPI app: `POST /jobs` (in-memory job store, runs the loop via `BackgroundTasks`), `GET /jobs/{id}/status`. Reads `ODOO_URL`/`ODOO_DB`/`ODOO_USER`/`ODOO_PASSWORD`/`OLLAMA_BASE_URL`/`OLLAMA_API_KEY`/`LLM_MODEL`/`MAX_AGENT_ITERATIONS` - matched to the env var names M0 already put in `docker-compose.yml`, not renamed.
+- `Dockerfile`, `requirements.txt`
+
+**A real cross-container import bug caught and fixed before it shipped:**
+the orchestrator needs `calc_engine` too (`calculate_emissions`,
+`lookup_default_value`), but it runs in its own container **without Odoo
+installed** - importing through `cbam.utils.calc_engine` would hit the same
+`cbam/__init__.py → models → import odoo` chain that broke M2's tests
+(see M2 section). Fixed the same way: `tools.py`/`odoo_client.py` import
+`calc_engine` as a bare module. This only works if `calc_engine.py` is on
+the container's path without going through `cbam/__init__.py`, so:
+- `machineB/tests/conftest.py` now also adds `machineB/orchestrator` to `sys.path`, alongside the existing `cbam/utils` entry, so tests can `import agent_loop`, `tools`, etc. as bare modules too.
+- `docker-compose.yml`'s `orchestrator` service build `context` changed from `./orchestrator` to `.` (machineB/), because the Dockerfile needs to `COPY addons/cbam/utils/calc_engine.py` in alongside the orchestrator's own files - a path outside the old, narrower build context. `dockerfile:` updated to `orchestrator/Dockerfile` to match.
+
+**Loop skeleton actually implemented** (matches the plan's skeleton, with
+tool-call messages reconstructed in OpenAI's expected format and tool
+errors caught and fed back to the model instead of crashing the loop):
+```python
+for i in range(max_iterations):
+    response = llm_client.chat(messages=messages, tools=tool_schemas)
+    if not response.tool_calls:
+        return AgentLoopResult(status="completed", ...)
+    messages.append({"role": "assistant", "content": ..., "tool_calls": [...]})
+    for call in response.tool_calls:
+        try:
+            result = execute_tool(call.name, call.args)
+        except Exception as exc:
+            result = {"error": str(exc)}
+        messages.append({"role": "tool", "tool_call_id": call.id, ...})
+        if call.name == "flag_for_human_review":
+            return AgentLoopResult(status="escalated", ...)
+# iteration cap reached -> loop itself calls flag_for_human_review as fallback
+```
+
+**Tests (all passing, real execution not just static checks):**
+- `test_tools.py` (11) — each of the 7 tools, including that `lookup_default_value` propagates a not-found `ValueError` rather than swallowing it, and that `write_declaration_line` is the only handler touching the (fake) Odoo client's write path
+- `test_agent_loop.py` (7) — no-tool-calls stops the loop; a tool call executes then the loop continues; **the model's arbitrary tool-call order within one turn is preserved, not reordered**; `flag_for_human_review` escalates immediately without running later calls in the same batch; iteration-cap exhaustion auto-escalates; a raised tool exception is fed back into the conversation instead of crashing; the reconstructed assistant/tool message shape is correct
+- `test_llm_client.py` (3) — response parsing (content-only and tool-calls), and that `model`/`messages`/`tools` are actually passed through to the underlying client
+- `test_main.py` (5) — schema loading returns all 7 wrapped in `{"type": "function", ...}`; job creation + background execution; status polling incl. 404; a missing required env var marks the job `failed` rather than crashing the process
+
+**Process note:** `main.py` was written before its tests (the only file
+this session didn't do strict red-green on) - the tests still assert real
+behavior (no mock-testing-mocks), but I didn't watch them fail first for
+that one file.
+
+**Done:** `pytest machineB/tests/ -q` → 41 passed (15 M2 + 11 tools + 7 agent_loop + 3 llm_client + 5 main).
+
+**Not done:** no commit yet; no live LLM or Odoo was ever contacted; `SYSTEM_PROMPT` is a first draft, unrefined by any actual model behavior since M4 is blocked; in-memory job store has no persistence (acceptable for this academic scope, flagged as a known limitation).
+
+---
+
+### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data BLOCKED)
+
+**Why blocked:** this milestone's actual deliverable is authoritative
+numbers, not code, and this sandbox cannot reliably get them. Tried, in
+order: (1) `WebFetch` on the EUR-Lex HTML page for IR 2025/2621 - returned
+empty content both times, on two different URL formats; (2) `WebFetch` on
+the JRC134682 PDF - saved the binary but the text layer is unusable
+(garbled output); (3) local PDF rendering via the `Read` tool - failed,
+`pdftoppm`/poppler-utils isn't installed here; (4) `WebSearch` for
+secondary-source numbers - got answers, but two independent search queries
+returned **contradicting numbers for the same regulation** (one claimed
+steel BF-BOF benchmark 1.530 tCO2/t, DRI/EAF 1.033, scrap EAF 0.288; a
+direct fetch of the actual cited article instead showed hot metal 1.248,
+EAF carbon steel 0.142, EAF high-alloy 0.176 - and didn't even mention the
+first set of figures). Given the project's own non-negotiable rule (never
+invent a number, verify against the primary text), I stopped rather than
+guess which secondary source to trust, and stopped before fetching from an
+unofficial PDF mirror (`api.pks.rs`) that isn't a defensible source anyway.
+
+**What got built instead, per your call to build the mechanism with
+placeholders:**
+- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses) for 5 emission-factor records (steel BF-BOF/FR, EAF_scrap/FR, EAF_DRI/TR; aluminium primary_electrolysis/NO, secondary_recycled/TN - TN chosen per `projecthandoff.md` §3's stated Tunisia relevance), one 2026 year-parameter record, and 2 good-benchmark records. **Every numeric field is `None`**, with an inline comment naming the exact primary source/table to pull the real value from.
+- `find_incomplete_seeds()` - lists every placeholder still outstanding.
+- `seed_odoo(env, allow_incomplete=False)` - **refuses to write to Odoo while any placeholder remains**, specifically so this can't accidentally seed a real declaration with fabricated numbers. `--allow-incomplete` exists only for testing the loading mechanism itself.
+- `main()` - standalone CLI using `odoorpc`, matching M6's connection pattern (not run inside Odoo's own process).
+- `test_seed_emission_factors.py` (5 tests, TDD'd) - every seed has a citation, `find_incomplete_seeds()` correctly flags the current all-placeholder state, `seed_odoo()` refuses by default and writes when explicitly overridden, and production-route records aren't duplicated across repeated runs.
+
+**To actually finish this milestone:** open the primary sources directly
+(not through this sandbox's tooling) - JRC134682 PDF, EUR-Lex CELEX
+32025R2621, and the actual EU ETS benchmark regulation (Commission
+Implementing Regulation (EU) 2026/1412 per a verified-secondary-source
+mention, but confirm this number too) - and fill in each `None` in
+`seed_emission_factors.py`, updating `source_document` to drop the
+"PLACEHOLDER, not yet verified" suffix once confirmed.
+
+---
+
+### M8 — Security hardening (built/verified 2026-07-30, pending commit)
+
+- **8a - Odoo record rules:** `machineB/addons/cbam/security/cbam_security_rules.xml` (new) - `ir.rule` records scoping `cbam.declaration`, `cbam.declaration.line`, and `cbam.source.document` to `[('declarant_id', '=', user.partner_id.id)]` (and the equivalent traversal for the two child models) for `base.group_user` only; `base.group_system` is untouched by these rules and keeps the unrestricted access `ir.model.access.csv` already grants. Added to `__manifest__.py`'s `data` list. Not runtime-verified (same Odoo-instance caveat as M3).
+- **8b - Pydantic tool-argument validation:** `machineB/orchestrator/tool_args.py` (new) - one Pydantic model per tool, mirroring `shared/tool_schemas/*.json` field-for-field (including the enums). `ToolDispatcher.execute()` now validates args through the matching model before calling the handler; a `ValidationError` becomes a `ValueError`, which `agent_loop.py` already catches and feeds back to the model as a tool error instead of crashing on a malformed call from a small model. 4 new tests added to `test_tools.py` (missing required arg, wrong type, invalid enum on two different tools) - all TDD'd (confirmed failing with `TypeError`/no-error before the validation existed).
+- **8c - nginx rate limits / ACL:** reviewed, not rebuilt - M0 already has this right. `machineA/nginx.conf.template` rejects any request without a matching `X-Api-Key` (401) and rate-limits at 10 r/s with a burst of 20. `tailscale-acl-example.json` restricts Machine B → Machine A:8443 TCP only and has an explicit test asserting the reverse direction (A → B:8069/5432) is denied. `OLLAMA_BASE_URL` is documented as `http://` (not https) consistently in both nginx and `.env.example` - intentional, encryption is the Tailscale WireGuard tunnel's job, not an app-layer TLS cert nobody asked to manage.
+- **8d - `.env` hygiene + secret rotation:** verified `git check-ignore -v machineA/.env machineB/.env` - both match the root `.gitignore`'s `*.env` pattern. Verified `git log --all --full-history -- '*.env'` returns nothing - no `.env` file has ever been committed. Wrote `docs/secret-rotation.md`: rotation steps for `OLLAMA_API_KEY`, `TS_AUTHKEY`, `POSTGRES_PASSWORD`, `ODOO_PASSWORD`, plus a periodic check for accidental force-adds.
+
+**Done:** `pytest machineB/tests/test_tools.py -v` → all pass (15, incl. the 4 new ones); `.env`/git history checks passed with real commands, not assumed.
+
+---
+
+### M9 — Evaluation (harness built 2026-07-30, real run BLOCKED on M4)
+
+**Why blocked:** the actual deliverable ("run 20 synthetic records through
+the agent loop, report accuracy") needs a real LLM in the loop. M4 being
+blocked means there is no real Ollama endpoint to run this against. I did
+**not** fabricate evaluation numbers - there is no `docs/evaluation.md` in
+this repo, and there shouldn't be until this has actually run against a
+real model. Presenting invented accuracy figures as if measured would be
+exactly the kind of thing this project's jury would (rightly) not forgive.
+
+**What got built instead:**
+- `shared/evaluation/scoring.py` - `score_record(ground_truth, written)` (per-field bool match against M1's ground truth, skipping fields that are `null` in ground truth rather than than counting them as a miss) and `aggregate_field_scores(...)` (per-field correct/total/accuracy across records). 6 tests, fully TDD'd, no infra dependency.
+- `shared/evaluation/run_evaluation.py` - `load_synthetic_records()` (reads real files from `shared/synthetic_data/output/`), `run_evaluation_on_record()` / `run_evaluation()` (drives the **real** `agent_loop.run_agent_loop()` and `tools.ToolDispatcher` from M6, with an injectable LLM client so a real one drops in once M4 unblocks), `build_report_markdown()` (status breakdown, iteration distribution, per-field accuracy, error list).
+- `test_run_evaluation.py` (4 tests) - one of them (`test_run_evaluation_on_record_scores_a_correct_completion`) loads an actual file from `shared/synthetic_data/output/` and drives it through the real M6 loop with only the LLM responses scripted - a genuine integration smoke test proving the M1→M6→M9 wiring works end to end, not just unit isolation. This is the mechanism-verification step you asked for; it is explicitly not a real evaluation and `build_report_markdown()`'s output from this test must never be quoted as one.
+
+**To actually finish this milestone:** once M4 produces a working
+`LLMClient` pointed at a real Ollama endpoint, and M7 has real emission
+factor data seeded (needed for any `data_source=default` record to resolve
+`lookup_default_value` correctly), run `run_evaluation()` over
+`load_synthetic_records(..., limit=20)` for real and write the results to
+`docs/evaluation.md`.
+
+**Done:** `pytest shared/evaluation/ -v` → 10 passed (6 scoring + 4 harness).
+
+---
+
+## Architecture Reference
+
+```
+Machine A                          Machine B
+─────────────────────              ───────────────────────────────
+Tailscale sidecar                  Tailscale sidecar
+nginx:8443 (API key gate)  ←───── orchestrator (FastAPI)
+Ollama (LLM inference)             Odoo 17 (cbam module)
+                                   PostgreSQL 16 (internal only)
+```
+
+**Data flow for one declaration:**
+1. User uploads supplier document in Odoo UI → clicks "Process with AI"
+2. Odoo → `POST /jobs` to orchestrator → `job_id` returned immediately
+3. Odoo polls `GET /jobs/{job_id}/status` every 5s
+4. Orchestrator runs agent loop: LLM calls tools in any order it decides
+5. LLM calls `write_declaration_line` when confident → orchestrator writes to Odoo via RPC
+6. Odoo polls → sees `completed` → reloads the declaration line record
+7. `cbam_source_document.raw_llm_output` stores full tool-call trace (audit trail)
+
+---
+
+## Key Constraints (do not change)
+
+- **No LangChain / AutoGen / CrewAI** — plain Python loop with `openai` client → Ollama `/v1` endpoint
+- **Zero business logic in orchestrator** — the LLM decides all tool ordering
+- **Deterministic calc engine** — zero LLM involvement in compliance calculations
+- **Steel & aluminium: direct emissions only** (Annex II of Reg 2023/956 — indirect/electricity not priced)
+- **Versioned emission factors** — never hardcoded; always queried with `valid_from`/`valid_to` filter
+- **50 t/year exemption** — `is_exempt()` must be called before any certificate calculation
+- **Iteration cap** — 8–10 iterations max; exhaustion → auto-call `flag_for_human_review`

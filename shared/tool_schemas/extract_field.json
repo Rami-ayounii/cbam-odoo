@@ -1,0 +1,28 @@
+{
+    "name": "extract_field",
+    "description": "Extract a single field's value from a supplier source document using the LLM's own reading of the document text. Returns the extracted value and a confidence indicator. Does not validate, reconcile, or compute anything - use check_consistency for validation.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "document_id": {
+                "type": "string",
+                "description": "Identifier of the cbam.source.document record to read from."
+            },
+            "field_name": {
+                "type": "string",
+                "enum": [
+                    "cn_code",
+                    "quantity_tonnes",
+                    "installation_name",
+                    "installation_country",
+                    "production_route",
+                    "direct_emissions_actual",
+                    "indirect_emissions_actual",
+                    "carbon_price_paid_origin"
+                ],
+                "description": "Which field to extract, matching the declaration line / synthetic-data ground-truth schema."
+            }
+        },
+        "required": ["document_id", "field_name"]
+    }
+}

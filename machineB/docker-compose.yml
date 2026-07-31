@@ -49,8 +49,8 @@ services:
 
   orchestrator:
     build:
-      context: ./orchestrator
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: machineB/orchestrator/Dockerfile
     container_name: machineB-orchestrator
     depends_on:
       - odoo
@@ -64,10 +64,14 @@ services:
       - ODOO_PASSWORD=${ODOO_PASSWORD}
       - LLM_MODEL=${LLM_MODEL:-qwen2.5:7b-instruct}
       - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-9}
+      - TOOL_SCHEMA_DIR=/app/shared/tool_schemas
+      - ORCHESTRATOR_API_KEY=${ORCHESTRATOR_API_KEY}
     network_mode: service:tailscale
     restart: unless-stopped
-    # Orchestrator is a placeholder until M6 — build will fail gracefully until
-    # machineB/orchestrator/Dockerfile exists
+    # M6: agent loop built in machineB/orchestrator/. Build context is the
+    # repo root (not machineB/) so the Dockerfile can also COPY
+    # shared/tool_schemas/ - those schemas live outside machineB/ and would
+    # be unreachable by a machineB/-scoped build context.
 
 volumes:
   tailscale-state:

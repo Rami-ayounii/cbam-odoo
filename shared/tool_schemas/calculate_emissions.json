@@ -1,0 +1,38 @@
+{
+    "name": "calculate_emissions",
+    "description": "Calls the deterministic calc engine to compute embedded emissions (and, once certificate parameters are available, certificates required) from the data gathered so far. The model decides WHEN to call this tool; the calculation itself always runs as deterministic Python (calc_engine.py), never as an LLM estimate.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "quantity_tonnes": {
+                "type": "number",
+                "description": "Tonnes of the good imported in the reporting period."
+            },
+            "direct_ef": {
+                "type": "number",
+                "description": "t CO2e per tonne of product - from actual measured data or a looked-up default."
+            },
+            "indirect_ef": {
+                "type": "number",
+                "default": 0,
+                "description": "t CO2e per tonne of product. 0 for steel & aluminium per Annex II."
+            },
+            "precursor_emissions": {
+                "type": "number",
+                "default": 0,
+                "description": "t CO2e already embedded in precursor materials, for complex/downstream goods."
+            },
+            "carbon_price_paid_origin": {
+                "type": "number",
+                "default": 0,
+                "description": "EUR/t CO2e already paid in the exporting country."
+            },
+            "markup_pct": {
+                "type": "number",
+                "default": 0,
+                "description": "IR 2025/2621 yearly markup on the default value (e.g. 0.10 for 10%), from lookup_default_value's result. Use 0 when direct_ef/indirect_ef came from actual measured data, not a looked-up default."
+            }
+        },
+        "required": ["quantity_tonnes", "direct_ef"]
+    }
+}

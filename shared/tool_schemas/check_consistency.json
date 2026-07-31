@@ -1,0 +1,15 @@
+{
+    "name": "check_consistency",
+    "description": "Deterministic validation of the fields extracted so far for one declaration line (e.g. quantity must be positive, emission factors must be in a plausible range for the sector, required fields must be present). Returns a list of issues found, empty if none. Never modifies data - a validation check only.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "extracted_data": {
+                "type": "object",
+                "description": "The fields extracted so far for this declaration line, keyed by field name (e.g. quantity_tonnes, direct_emissions_actual).",
+                "additionalProperties": true
+            }
+        },
+        "required": ["extracted_data"]
+    }
+}

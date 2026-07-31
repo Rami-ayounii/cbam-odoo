@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_cbam_declaration_line_tree" model="ir.ui.view">
+        <field name="name">cbam.declaration.line.tree</field>
+        <field name="model">cbam.declaration.line</field>
+        <field name="arch" type="xml">
+            <tree string="CBAM Declaration Lines">
+                <field name="declaration_id"/>
+                <field name="good_id"/>
+                <field name="installation_id"/>
+                <field name="quantity_tonnes"/>
+                <field name="data_source"/>
+                <field name="embedded_emissions_total"/>
+                <field name="certificates_required"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_cbam_declaration_line_form" model="ir.ui.view">
+        <field name="name">cbam.declaration.line.form</field>
+        <field name="model">cbam.declaration.line</field>
+        <field name="arch" type="xml">
+            <form string="CBAM Declaration Line">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="declaration_id"/>
+                            <field name="good_id"/>
+                            <field name="installation_id"/>
+                            <field name="quantity_tonnes"/>
+                            <field name="data_source"/>
+                        </group>
+                        <group>
+                            <field name="direct_emissions_actual"/>
+                            <field name="indirect_emissions_actual"/>
+                            <field name="emission_factor_id"/>
+                            <field name="carbon_price_paid_origin"/>
+                            <field name="precursor_emissions"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="embedded_emissions_total" readonly="1"/>
+                        <field name="certificates_required" readonly="1"/>
+                    </group>
+                    <button name="action_lookup_emission_factor"
+                            type="object"
+                            string="Lookup Default Emission Factor"/>
+                    <notebook>
+                        <page string="Source Documents">
+                            <field name="source_document_ids">
+                                <tree>
+                                    <field name="attachment_filename"/>
+                                    <field name="extraction_status"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cbam_declaration_line" model="ir.actions.act_window">
+        <field name="name">CBAM Declaration Lines</field>
+        <field name="res_model">cbam.declaration.line</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+</odoo>

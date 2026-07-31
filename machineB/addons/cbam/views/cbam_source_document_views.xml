@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_cbam_source_document_tree" model="ir.ui.view">
+        <field name="name">cbam.source.document.tree</field>
+        <field name="model">cbam.source.document</field>
+        <field name="arch" type="xml">
+            <tree string="CBAM Source Documents">
+                <field name="declaration_line_id"/>
+                <field name="attachment_filename"/>
+                <field name="extraction_status"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_cbam_source_document_form" model="ir.ui.view">
+        <field name="name">cbam.source.document.form</field>
+        <field name="model">cbam.source.document</field>
+        <field name="arch" type="xml">
+            <form string="CBAM Source Document">
+                <sheet>
+                    <group>
+                        <field name="declaration_line_id"/>
+                        <field name="attachment" filename="attachment_filename"/>
+                        <field name="attachment_filename" invisible="1"/>
+                        <field name="extraction_status"/>
+                    </group>
+                    <group>
+                        <field name="raw_llm_output"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cbam_source_document" model="ir.actions.act_window">
+        <field name="name">CBAM Source Documents</field>
+        <field name="res_model">cbam.source.document</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+</odoo>

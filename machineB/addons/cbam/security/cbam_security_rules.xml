@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- M8: declarants see only their own declarations. Scoped to
+         base.group_user only - base.group_system (managers) get no rule
+         here, so they keep the unrestricted access ir.model.access.csv
+         already grants them. -->
+
+    <record id="rule_cbam_declaration_own" model="ir.rule">
+        <field name="name">Declarants see only their own declarations</field>
+        <field name="model_id" ref="model_cbam_declaration"/>
+        <field name="domain_force">[('declarant_id', '=', user.partner_id.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_cbam_declaration_line_own" model="ir.rule">
+        <field name="name">Declarants see only their own declaration lines</field>
+        <field name="model_id" ref="model_cbam_declaration_line"/>
+        <field name="domain_force">[('declaration_id.declarant_id', '=', user.partner_id.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_cbam_source_document_own" model="ir.rule">
+        <field name="name">Declarants see only their own source documents</field>
+        <field name="model_id" ref="model_cbam_source_document"/>
+        <field name="domain_force">[('declaration_line_id.declaration_id.declarant_id', '=', user.partner_id.id)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+</odoo>

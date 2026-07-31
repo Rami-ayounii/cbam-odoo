@@ -1,0 +1,53 @@
+{
+    "name": "write_declaration_line",
+    "description": "Writes the final, validated declaration line data to Odoo via a single RPC call. Must be called at most once per line, only after calculate_emissions has produced a result and check_consistency has raised no blocking issues. This is the only tool with write access to Odoo - the orchestrator has read-only access everywhere else in the loop.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "declaration_id": {
+                "type": "integer",
+                "description": "The cbam.declaration record this line belongs to."
+            },
+            "good_id": {
+                "type": "integer"
+            },
+            "installation_id": {
+                "type": "integer"
+            },
+            "quantity_tonnes": {
+                "type": "number"
+            },
+            "data_source": {
+                "type": "string",
+                "enum": ["actual", "default"]
+            },
+            "direct_emissions_actual": {
+                "type": "number",
+                "default": 0
+            },
+            "indirect_emissions_actual": {
+                "type": "number",
+                "default": 0
+            },
+            "emission_factor_id": {
+                "type": "integer",
+                "description": "Required when data_source = default, from lookup_default_value's result. Must be omitted/null when data_source = actual."
+            },
+            "carbon_price_paid_origin": {
+                "type": "number",
+                "default": 0
+            },
+            "precursor_emissions": {
+                "type": "number",
+                "default": 0
+            }
+        },
+        "required": [
+            "declaration_id",
+            "good_id",
+            "installation_id",
+            "quantity_tonnes",
+            "data_source"
+        ]
+    }
+}

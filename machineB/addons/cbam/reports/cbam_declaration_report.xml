@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_report_cbam_declaration" model="ir.actions.report">
+        <field name="name">CBAM Declaration Summary</field>
+        <field name="model">cbam.declaration</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">cbam.report_cbam_declaration</field>
+        <field name="report_file">cbam.report_cbam_declaration</field>
+        <field name="print_report_name">'CBAM Declaration - %s' % (object.reporting_year)</field>
+        <field name="binding_model_id" ref="model_cbam_declaration"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <template id="report_cbam_declaration">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="o">
+                <t t-call="web.external_layout">
+                    <div class="page">
+                        <h2>CBAM Declaration - <span t-field="o.reporting_year"/></h2>
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Declarant:</strong> <span t-field="o.declarant_id.name"/>
+                            </div>
+                            <div class="col-6">
+                                <strong>Status:</strong> <span t-field="o.status"/>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-6">
+                                <strong>Total Quantity (t):</strong>
+                                <span t-field="o.total_quantity_tonnes"/>
+                            </div>
+                            <div class="col-6">
+                                <strong>Exempt (&lt; 50 t/year):</strong>
+                                <span t-field="o.is_exempt"/>
+                            </div>
+                        </div>
+
+                        <table class="table table-sm o_report_table mt-4">
+                            <thead>
+                                <tr>
+                                    <th>Good</th>
+                                    <th>Installation</th>
+                                    <th>Quantity (t)</th>
+                                    <th>Embedded Emissions (t CO2e)</th>
+                                    <th>Certificates Required</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="o.line_ids" t-as="line">
+                                    <td><span t-field="line.good_id.description"/></td>
+                                    <td><span t-field="line.installation_id.name"/></td>
+                                    <td><span t-field="line.quantity_tonnes"/></td>
+                                    <td><span t-field="line.embedded_emissions_total"/></td>
+                                    <td><span t-field="line.certificates_required"/></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+</odoo>

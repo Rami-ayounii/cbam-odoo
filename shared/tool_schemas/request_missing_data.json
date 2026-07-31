@@ -1,0 +1,18 @@
+{
+    "name": "request_missing_data",
+    "description": "Flags that a required field could not be extracted from any available source document and needs a human or Odoo user to supply it. Does not end the loop - the model may continue calling other tools afterwards.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "field_name": {
+                "type": "string",
+                "description": "The field that is missing."
+            },
+            "reason": {
+                "type": "string",
+                "description": "Why this field is missing, e.g. absent from all source documents, or contradictory across documents."
+            }
+        },
+        "required": ["field_name", "reason"]
+    }
+}

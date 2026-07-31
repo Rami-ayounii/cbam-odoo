@@ -45,6 +45,8 @@ should showcase both, not just "connect an LLM to Odoo."
   Tunisia exports steel/aluminium/phosphate products to the EU and is
   directly affected by CBAM reporting requirements from EU-side importers.
 
+
+
 ## 4. Architecture — two machines, Docker, Tailscale
 
 ```
