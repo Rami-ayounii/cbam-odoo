@@ -22,7 +22,6 @@ import argparse
 import json
 import random
 import textwrap
-import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -184,19 +183,36 @@ def _mill_certificate(
     else:
         qty_unit = "t"
 
+    # Each line is gated independently on its own missing_fields entry - a
+    # record with only direct_emissions_actual flagged missing must still
+    # show indirect_emissions_actual / carbon_price_paid_origin when those
+    # are NOT in missing_fields. (Previously this whole block was gated on
+    # direct_emissions_actual alone, silently hiding indirect emissions and
+    # carbon price too whenever direct was the missing one - inconsistent
+    # with ground_truth.missing_fields, which named only the fields actually
+    # meant to be unextractable.)
     emission_section = ""
-    if gt.data_source == "actual" and "direct_emissions_actual" not in gt.missing_fields:
-        emission_section = textwrap.dedent(f"""
-        CARBON INTENSITY DECLARATION (CBAM Annex III)
-        Production route          : {gt.production_route}
-        Direct embedded emissions : {gt.direct_emissions_actual} tCO2e/t
-        """)
-        if "indirect_emissions_actual" not in gt.missing_fields:
-            emission_section += f"Indirect embedded emissions: {gt.indirect_emissions_actual} tCO2e/t\n"
-        if gt.carbon_price_paid_origin > 0:
-            emission_section += (
-                f"Carbon price paid (origin) : {gt.carbon_price_paid_origin} EUR/tCO2e\n"
+    if gt.data_source == "actual":
+        header_needed = (
+            "direct_emissions_actual" not in gt.missing_fields
+            or "indirect_emissions_actual" not in gt.missing_fields
+            or gt.carbon_price_paid_origin > 0
+        )
+        if header_needed:
+            emission_section = (
+                "\nCARBON INTENSITY DECLARATION (CBAM Annex III)\n"
+                f"Production route          : {gt.production_route}\n"
             )
+            if "direct_emissions_actual" not in gt.missing_fields:
+                emission_section += (
+                    f"Direct embedded emissions : {gt.direct_emissions_actual} tCO2e/t\n"
+                )
+            if "indirect_emissions_actual" not in gt.missing_fields:
+                emission_section += f"Indirect embedded emissions: {gt.indirect_emissions_actual} tCO2e/t\n"
+            if gt.carbon_price_paid_origin > 0:
+                emission_section += (
+                    f"Carbon price paid (origin) : {gt.carbon_price_paid_origin} EUR/tCO2e\n"
+                )
 
     return textwrap.dedent(f"""
     ══════════════════════════════════════════════════════════════════
@@ -242,6 +258,16 @@ def _carbon_intensity_report(
     """Produce a CBAM carbon intensity report (standalone supplier declaration)."""
     country_name = EXPORTING_COUNTRIES[gt.installation_country]["name"]
 
+    # ground_truth.quantity_tonnes is never null (unlike the emissions
+    # fields, it has no missing_fields mechanism), so it must always be
+    # extractable from whichever document type gets generated - this report
+    # previously never mentioned quantity at all, making it silently
+    # unextractable for ~30% of records without that being flagged anywhere.
+    if difficulty == "medium":
+        quantity_line = f"Quantity covered   : {round(gt.quantity_tonnes * 1000, 1)} kg"
+    else:
+        quantity_line = f"Quantity covered   : {gt.quantity_tonnes} t"
+
     direct_line = ""
     indirect_line = ""
     if "direct_emissions_actual" not in gt.missing_fields and gt.direct_emissions_actual is not None:
@@ -271,6 +297,7 @@ def _carbon_intensity_report(
     Country  : {country_name} ({gt.installation_country})
     Sector   : {gt.sector.capitalize()}
     Production route: {gt.production_route}
+    {quantity_line}
 
     EMISSIONS DATA
     {direct_line}
@@ -414,7 +441,26 @@ def generate_record(
         p=[0.5, 0.3, 0.2],
     )
 
-    record_id = f"SYNTH-{index:04d}-{uuid.uuid4().hex[:6].upper()}"
+    # customs_declaration (SAD-style import entry summary) never carries
+    # CBAM emissions data in real life or in _customs_declaration()'s text
+    # below - so when this doc type is picked and data_source == "actual",
+    # direct/indirect_emissions_actual are structurally unextractable from
+    # the one document this record hands the agent, independent of
+    # `difficulty`. Without this, ground truth claimed those fields were
+    # extractable (non-null, not in missing_fields) when they never appear
+    # in the text - an internal-consistency bug that would silently fail
+    # any model's extraction regardless of quality.
+    if doc_type == "customs_declaration" and gt.data_source == "actual":
+        for absent_field in ("direct_emissions_actual", "indirect_emissions_actual"):
+            if absent_field not in gt.missing_fields:
+                gt.missing_fields.append(absent_field)
+
+    # Derived from the seeded rng (not uuid.uuid4(), which ignores --seed
+    # entirely) so that re-running the same --count/--seed reproduces the
+    # exact same record_ids and overwrites the previous output in place,
+    # instead of silently accumulating a second copy of every record under
+    # new random filenames on every run.
+    record_id = f"SYNTH-{index:04d}-{rng.integers(0, 0xFFFFFF):06X}"
     cert_no = fake.bothify(text="CERT-####-???").upper()
     heat_no = fake.bothify(text="H-######").upper()
     report_no = fake.bothify(text="CIR-####-??").upper()
@@ -465,7 +511,14 @@ def generate_dataset(
             "ground_truth": asdict(rec.ground_truth),
         }
         out_path = outdir / f"{rec.record_id}.json"
-        out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        # Explicit utf-8: document_text contains box-drawing characters
+        # (═, written via ensure_ascii=False so they're readable in the
+        # file, not \u escaped). Without an explicit encoding, write_text()
+        # falls back to the platform's locale encoding - cp1252 on Windows -
+        # which cannot represent those characters and crashes every run.
+        out_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
 
     # Summary index
     summary = [
@@ -482,13 +535,13 @@ def generate_dataset(
         }
         for r in records
     ]
-    (outdir / "index.json").write_text(json.dumps(summary, indent=2))
+    (outdir / "index.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     # Stats
     difficulties = [r.difficulty for r in records]
     sectors = [r.ground_truth.sector for r in records]
     doc_types = [r.document_type for r in records]
-    print(f"Generated {count} records → {outdir}")
+    print(f"Generated {count} records -> {outdir}")
     print(f"  Difficulties : easy={difficulties.count('easy')}  medium={difficulties.count('medium')}  hard={difficulties.count('hard')}")
     print(f"  Sectors      : steel={sectors.count('steel')}  aluminium={sectors.count('aluminium')}")
     print(f"  Doc types    : mill_cert={doc_types.count('mill_certificate')}  cir={doc_types.count('carbon_intensity_report')}  customs={doc_types.count('customs_declaration')}")

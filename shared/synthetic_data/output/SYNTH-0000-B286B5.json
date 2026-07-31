@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0000-B286B5",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "medium",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-0133-GM\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Ezz Steel Suez\nCountry  : Egypt (EG)\nSector   : Steel\nProduction route: BF-BOF\nQuantity covered   : 41880.0 kg\n\nEMISSIONS DATA\n\n\n\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Caitlin Henderson\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7213.10.00",
+    "description": "Bars and rods, hot-rolled, in irregularly wound coils",
+    "sector": "steel",
+    "quantity_tonnes": 41.88,
+    "installation_name": "Ezz Steel Suez",
+    "installation_country": "EG",
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

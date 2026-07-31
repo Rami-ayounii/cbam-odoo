@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0040-556948",
+  "document_type": "mill_certificate",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-7117-MIB\nDate           : 2026-07-30\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : Aluminium of Morocco\nCountry  : Morocco (MA)\nAddress  : 65405 Michael Street Apt. 952, West Amyburgh, MP 90243\n\nPRODUCT IDENTIFICATION\nCN Code      : 7601.20.99\nDescription  : Unwrought aluminium alloys\nHeat / Batch : H-893246\nGrade        : EN AW-6060\nStandard     : EN 573-3:2019\n\nQUANTITY\nNet mass : 57.97 t\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nSi: 0.45  Mg: 0.52  Fe: 0.21  Cu: 0.08  Mn: 0.06  Cr: 0.04\n\nMECHANICAL PROPERTIES\n0.2% proof stress: 195 MPa   Tensile strength: 225 MPa   Elongation: 11%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Michael Welch\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7601.20.99",
+    "description": "Unwrought aluminium alloys",
+    "sector": "aluminium",
+    "quantity_tonnes": 57.97,
+    "installation_name": "Aluminium of Morocco",
+    "installation_country": "MA",
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

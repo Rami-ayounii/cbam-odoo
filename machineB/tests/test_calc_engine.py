@@ -100,6 +100,22 @@ def test_embedded_emissions_default_markup_pct_is_zero():
     assert result == pytest.approx(190.0)
 
 
+def test_embedded_emissions_ignores_indirect_ef_for_steel_and_aluminium():
+    # Formula sheet section 1.2: iron & steel and aluminium are Annex II
+    # goods, so SEEg = SEE(direct,g) only - indirect/electricity emissions
+    # are tracked for reporting/statistics but never priced. A non-zero
+    # indirect_ef (e.g. a measured indirect_emissions_actual value entered
+    # for statistics) must not change the compliance number: result should
+    # be identical to the indirect_ef=0.0 case above.
+    result = calculate_embedded_emissions(
+        quantity_tonnes=100.0,
+        direct_ef=1.9,
+        indirect_ef=0.6,
+        precursor_emissions=0.0,
+    )
+    assert result == pytest.approx(190.0)
+
+
 # --- calculate_certificates_required (full Art. 9/31 formula) ---
 
 
@@ -164,6 +180,21 @@ def test_certificates_never_negative_when_benchmark_deduction_exceeds_total():
         reference_certificate_price=80.0,
     )
     assert result == pytest.approx(0.0)
+
+
+def test_certificates_negative_carbon_price_paid_does_not_inflate_result():
+    # A negative/erroneous carbon_price_paid_origin must not flip the price
+    # adjustment into a surcharge - the fraction is floored at 0.0, so the
+    # result is capped at N (the raw benchmark-deducted total), never above.
+    result = calculate_certificates_required(
+        embedded_emissions_total=200.0,
+        quantity_tonnes=100.0,
+        benchmark=0.0,
+        cbam_factor_year=0.0,
+        carbon_price_paid_origin=-40.0,
+        reference_certificate_price=80.0,
+    )
+    assert result == pytest.approx(200.0)
 
 
 # --- lookup_emission_factor: versioned date-ranged lookup ---

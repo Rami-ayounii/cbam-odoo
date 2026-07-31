@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0025-D8D3A5",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-0909-VF\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Hydro Sunndalsora\nCountry  : Norway (NO)\nSector   : Aluminium\nProduction route: secondary_recycled\nQuantity covered   : 466.85 t\n\nEMISSIONS DATA\n\n\nCarbon price paid at origin: 57.62 EUR/tCO2e (ETS compliance)\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Maria Parker\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7601.20.99",
+    "description": "Unwrought aluminium alloys",
+    "sector": "aluminium",
+    "quantity_tonnes": 466.85,
+    "installation_name": "Hydro Sunndalsora",
+    "installation_country": "NO",
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 57.62,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

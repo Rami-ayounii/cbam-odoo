@@ -19,4 +19,5 @@ class CbamInstallation(models.Model):
         "cbam.production.route",
         string="Production Route",
         required=True,
+        ondelete="restrict",
     )

@@ -14,7 +14,9 @@ class CbamDeclaration(models.Model):
     _description = "CBAM Annual Declaration"
     _order = "reporting_year desc, id desc"
 
-    declarant_id = fields.Many2one("res.partner", string="Declarant", required=True)
+    declarant_id = fields.Many2one(
+        "res.partner", string="Declarant", required=True, ondelete="restrict"
+    )
     reporting_year = fields.Integer(required=True)
     status = fields.Selection(STATUS_SELECTION, default="draft", required=True)
     submission_date = fields.Date()

@@ -115,6 +115,30 @@ def test_chat_retries_on_rate_limit_then_succeeds():
     assert completions.call_count == 3
 
 
+def test_chat_does_not_crash_on_malformed_tool_call_arguments():
+    # A real, expected failure mode for small local models: returning
+    # non-JSON (or truncated JSON) tool-call arguments. This used to raise
+    # json.JSONDecodeError straight out of chat(), uncaught by the tenacity
+    # retry (not a retryable error type) and uncaught by agent_loop.py,
+    # crashing the whole job. It must instead come back as a normal
+    # LLMResponse the loop can hand to the dispatcher, which then rejects
+    # the malformed args as a tool error fed back to the model.
+    raw_tool_call = SimpleNamespace(
+        id="call-1",
+        function=SimpleNamespace(name="lookup_default_value", arguments="{not valid json"),
+    )
+    completion = _make_completion(content=None, tool_calls=[raw_tool_call])
+    fake_client = FakeOpenAIClient(completion)
+    llm_client = LLMClient(model="test-model", client=fake_client)
+
+    response = llm_client.chat(messages=[], tools=[])
+
+    assert len(response.tool_calls) == 1
+    assert response.tool_calls[0].name == "lookup_default_value"
+    assert isinstance(response.tool_calls[0].args, dict)
+    assert "_tool_call_arguments_parse_error" in response.tool_calls[0].args
+
+
 def test_chat_does_not_retry_on_authentication_error():
     error = _make_error(AuthenticationError, 401)
     completions = FlakyCompletions(error, fail_times=99, completion=None)

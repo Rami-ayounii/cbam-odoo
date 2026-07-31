@@ -171,7 +171,11 @@ def _run_job(job_id: str, request: JobRequest):
             llm_client=llm_client,
             tool_schemas=_load_tool_schemas(),
             execute_tool=dispatcher.execute,
-            max_iterations=int(os.environ.get("MAX_AGENT_ITERATIONS", 9)),
+            # projecthandoff.md sec. 7: "Hard iteration cap (8-10 loops)" -
+            # clamped here so a misconfigured MAX_AGENT_ITERATIONS env var
+            # can't push a deployment outside the spec'd range in either
+            # direction.
+            max_iterations=min(max(int(os.environ.get("MAX_AGENT_ITERATIONS", 9)), 8), 10),
         )
         odoo_client.write_llm_trace(
             declaration_line_id=request.declaration_line_id,

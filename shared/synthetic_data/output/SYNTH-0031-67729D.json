@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0031-67729D",
+  "document_type": "mill_certificate",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-5851-WRK\nDate           : 2026-07-30\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : SIMETAL Morocco Casablanca\nCountry  : Morocco (MA)\nAddress  : Unit 1836 Box 6752, DPO AA 41347\n\nPRODUCT IDENTIFICATION\nCN Code      : 7213.10.00\nDescription  : Bars and rods, hot-rolled, in irregularly wound coils\nHeat / Batch : H-368998\nGrade        : S355JR\nStandard     : EN 10025-2:2019\n\nQUANTITY\nNet mass : 55.33 t\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nC: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\nMECHANICAL PROPERTIES\nYield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Paula Bradley\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7213.10.00",
+    "description": "Bars and rods, hot-rolled, in irregularly wound coils",
+    "sector": "steel",
+    "quantity_tonnes": 55.33,
+    "installation_name": "SIMETAL Morocco Casablanca",
+    "installation_country": "MA",
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

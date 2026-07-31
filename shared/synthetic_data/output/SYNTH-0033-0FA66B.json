@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0033-0FA66B",
+  "document_type": "mill_certificate",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\n    MILL TEST CERTIFICATE — EN 10204 TYPE 3.1\n    Certificate No : CERT-4324-SUH\n    Date           : 2026-07-30\n    ══════════════════════════════════════════════════════════════════\n\n    MANUFACTURER\n    Name     : JSW Steel Vijayanagar\n    Country  : India (IN)\n    Address  : 1605 Laurie River Suite 516, East Ryanfurt, NC 10809\n\n    PRODUCT IDENTIFICATION\n    CN Code      : 7304.11.00\n    Description  : Line pipe of a kind used for oil or gas pipelines (seamless)\n    Heat / Batch : H-076226\n    Grade        : S355JR\n    Standard     : EN 10025-2:2019\n\n    QUANTITY\n    Net mass : 429.5 t\n\n    CHEMICAL COMPOSITION (% by mass, ladle analysis)\n    C: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\n    MECHANICAL PROPERTIES\n    Yield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\nCARBON INTENSITY DECLARATION (CBAM Annex III)\nProduction route          : EAF_scrap\nDirect embedded emissions : 0.416 tCO2e/t\nIndirect embedded emissions: 0.392 tCO2e/t\n\n    ══════════════════════════════════════════════════════════════════\n    Authorised Signatory: Eric Morgan\n    This certificate is issued in accordance with EN 10204:2004.\n    ══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7304.11.00",
+    "description": "Line pipe of a kind used for oil or gas pipelines (seamless)",
+    "sector": "steel",
+    "quantity_tonnes": 429.5,
+    "installation_name": "JSW Steel Vijayanagar",
+    "installation_country": "IN",
+    "production_route": "EAF_scrap",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.416,
+    "indirect_emissions_actual": 0.392,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

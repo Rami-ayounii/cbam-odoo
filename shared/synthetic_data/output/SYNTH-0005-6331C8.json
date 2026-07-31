@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0005-6331C8",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-7010-ZU\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Rio Tinto Alma\nCountry  : Canada (CA)\nSector   : Aluminium\nProduction route: secondary_recycled\nQuantity covered   : 147.72 t\n\nEMISSIONS DATA\nDirect embedded emissions  : 0.121 tCO2e / tonne of product\nIndirect embedded emissions: 0.26 tCO2e / tonne of product\nCarbon price paid at origin: 58.6 EUR/tCO2e (ETS compliance)\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: David Leblanc\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7604.29.10",
+    "description": "Hollow profiles of aluminium alloys",
+    "sector": "aluminium",
+    "quantity_tonnes": 147.72,
+    "installation_name": "Rio Tinto Alma",
+    "installation_country": "CA",
+    "production_route": "secondary_recycled",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.121,
+    "indirect_emissions_actual": 0.26,
+    "carbon_price_paid_origin": 58.6,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

@@ -21,9 +21,11 @@ class CbamDeclarationLine(models.Model):
     declaration_id = fields.Many2one(
         "cbam.declaration", string="Declaration", required=True, ondelete="cascade"
     )
-    good_id = fields.Many2one("cbam.good", string="Good", required=True)
+    good_id = fields.Many2one(
+        "cbam.good", string="Good", required=True, ondelete="restrict"
+    )
     installation_id = fields.Many2one(
-        "cbam.installation", string="Installation", required=True
+        "cbam.installation", string="Installation", required=True, ondelete="restrict"
     )
     quantity_tonnes = fields.Float(required=True, digits=(16, 3))
     data_source = fields.Selection(
@@ -59,6 +61,19 @@ class CbamDeclarationLine(models.Model):
 
     embedded_emissions_total = fields.Float(
         compute="_compute_embedded_emissions_total", store=True, digits=(16, 3)
+    )
+    year_parameter_id = fields.Many2one(
+        "cbam.year.parameter",
+        string="Year Parameter",
+        compute="_compute_year_parameter_id",
+        store=True,
+        help="Resolved cbam.year.parameter record for the declaration's "
+        "reporting year. Stored as a real relation (not just looked up "
+        "inline inside _compute_certificates_required) so that editing an "
+        "existing cbam.year.parameter's cbam_factor_year or "
+        "reference_certificate_price correctly triggers a recompute of "
+        "certificates_required via @api.depends - a plain search() call "
+        "inside the compute method would not be tracked as a dependency.",
     )
     certificates_required = fields.Float(
         compute="_compute_certificates_required", store=True, digits=(16, 3)
@@ -102,8 +117,9 @@ class CbamDeclarationLine(models.Model):
         "quantity_tonnes",
         "good_id.benchmark",
         "carbon_price_paid_origin",
-        "declaration_id.reporting_year",
         "declaration_id.is_exempt",
+        "year_parameter_id.cbam_factor_year",
+        "year_parameter_id.reference_certificate_price",
     )
     def _compute_certificates_required(self):
         for line in self:
@@ -111,11 +127,11 @@ class CbamDeclarationLine(models.Model):
                 # 50 t/year exemption (docs/PROGRESS.md constraint): an
                 # exempt declaration owes no certificates regardless of
                 # embedded emissions, so this must short-circuit before the
-                # year-parameter lookup below.
+                # year-parameter check below.
                 line.certificates_required = 0.0
                 continue
 
-            year_parameter = line._get_year_parameter()
+            year_parameter = line.year_parameter_id
             if not year_parameter:
                 # No versioned year parameter seeded yet for this reporting
                 # year (M7) - can't produce a compliant number, so leave at
@@ -132,6 +148,29 @@ class CbamDeclarationLine(models.Model):
                 reference_certificate_price=year_parameter.reference_certificate_price,
             )
 
+    @api.constrains("good_id", "installation_id")
+    def _check_sector_consistency(self):
+        # Nothing in the ORM stops a line from pairing a steel good with an
+        # aluminium installation (or an installation whose production route
+        # is itself a different sector than the installation record claims -
+        # possible via direct writes even though the UI wouldn't normally
+        # allow it) - each sector lives on its own Selection field with no
+        # relation between them. Silently mixing sectors would corrupt the
+        # emission-factor lookup (which is keyed on good_id.sector) without
+        # raising anything.
+        for line in self:
+            if not line.good_id or not line.installation_id:
+                continue
+            sectors = {line.good_id.sector, line.installation_id.sector}
+            if line.installation_id.production_route_id:
+                sectors.add(line.installation_id.production_route_id.sector)
+            if len(sectors) > 1:
+                raise ValidationError(
+                    "Good, Installation, and Installation's Production "
+                    "Route must all belong to the same sector "
+                    f"(found: {', '.join(sorted(sectors))})."
+                )
+
     @api.constrains("data_source", "emission_factor_id")
     def _check_emission_factor_set_for_default_source(self):
         # Without this, an unset emission_factor_id on a data_source =
@@ -146,13 +185,15 @@ class CbamDeclarationLine(models.Model):
                     "is 'Default'."
                 )
 
-    def _get_year_parameter(self):
-        self.ensure_one()
-        if not self.declaration_id.reporting_year:
-            return self.env["cbam.year.parameter"]
-        return self.env["cbam.year.parameter"].search(
-            [("year", "=", self.declaration_id.reporting_year)], limit=1
-        )
+    @api.depends("declaration_id.reporting_year")
+    def _compute_year_parameter_id(self):
+        for line in self:
+            if not line.declaration_id.reporting_year:
+                line.year_parameter_id = False
+                continue
+            line.year_parameter_id = self.env["cbam.year.parameter"].search(
+                [("year", "=", line.declaration_id.reporting_year)], limit=1
+            )
 
     def action_lookup_emission_factor(self):
         """Populate emission_factor_id from the versioned reference table
@@ -163,8 +204,8 @@ class CbamDeclarationLine(models.Model):
             if line.data_source != "default":
                 continue
             if not line.declaration_id.reporting_year:
-                # Same guard as _get_year_parameter(): nothing to look up
-                # yet without a reporting year (e.g. a new/unsaved
+                # Same guard as _compute_year_parameter_id(): nothing to
+                # look up yet without a reporting year (e.g. a new/unsaved
                 # declaration), so skip rather than build an invalid date
                 # string like "0-01-01" or "False-01-01".
                 continue

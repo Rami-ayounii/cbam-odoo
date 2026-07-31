@@ -12,7 +12,10 @@ class CbamEmissionFactor(models.Model):
 
     sector = fields.Selection(SECTOR_SELECTION, required=True)
     production_route_id = fields.Many2one(
-        "cbam.production.route", string="Production Route", required=True
+        "cbam.production.route",
+        string="Production Route",
+        required=True,
+        ondelete="restrict",
     )
     country = fields.Char(
         string="Country Code",

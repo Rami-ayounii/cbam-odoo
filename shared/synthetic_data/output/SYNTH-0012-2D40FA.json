@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0012-2D40FA",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-2788-MU\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : ArcelorMittal Kryvyi Rih\nCountry  : Ukraine (UA)\nSector   : Steel\nProduction route: EAF_scrap\nQuantity covered   : 429.02 t\n\nEMISSIONS DATA\n\n\n\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Sara Ramirez\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7304.11.00",
+    "description": "Line pipe of a kind used for oil or gas pipelines (seamless)",
+    "sector": "steel",
+    "quantity_tonnes": 429.02,
+    "installation_name": "ArcelorMittal Kryvyi Rih",
+    "installation_country": "UA",
+    "production_route": "EAF_scrap",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

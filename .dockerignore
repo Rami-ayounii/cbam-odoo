@@ -1,0 +1,37 @@
+# Applies to the orchestrator image build, whose context is the repo root
+# (see machineB/docker-compose.yml: build.context: ..). The Dockerfile only
+# COPYs specific files/globs (never "COPY . ."), so nothing here can leak
+# into the image by accident either way — this file exists to keep the
+# build context small and fast, and as defense-in-depth in case the
+# Dockerfile is ever changed to a broader COPY.
+
+.git/
+.gitignore
+.gitattributes
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+
+# Secrets — never sent to the Docker daemon even though the Dockerfile
+# never COPYs them.
+.env
+.env.local
+**/.env
+**/.env.local
+
+# Docs / non-build assets not needed by any image
+docs/
+projecthandoff.md
+*.md
+*.docx
+
+# Docker volume mount points if ever created locally
+postgres-data/
+odoo-data/
+ollama-models/
+
+# Editor/OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

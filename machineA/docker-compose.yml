@@ -38,6 +38,14 @@ services:
     image: nginx:latest
     container_name: machineA-nginx
     network_mode: service:tailscale
+    environment:
+      # Required so the image's built-in envsubst-on-templates entrypoint
+      # (docker-entrypoint.d/20-envsubst-on-templates.sh) can substitute
+      # ${OLLAMA_API_KEY} in nginx.conf.template. That script only expands
+      # variables that are actually present in the container's environment;
+      # without this, ${OLLAMA_API_KEY} is left as a literal, undefined
+      # nginx variable reference and nginx fails to start.
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     volumes:
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:

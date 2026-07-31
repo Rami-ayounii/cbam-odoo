@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0032-9DC4CA",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-7643-WG\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Rio Tinto Alma\nCountry  : Canada (CA)\nSector   : Aluminium\nProduction route: secondary_recycled\nQuantity covered   : 59.59 t\n\nEMISSIONS DATA\n\n\nCarbon price paid at origin: 68.63 EUR/tCO2e (ETS compliance)\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: William Brown\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7610.10.00",
+    "description": "Doors, windows and their frames of aluminium",
+    "sector": "aluminium",
+    "quantity_tonnes": 59.59,
+    "installation_name": "Rio Tinto Alma",
+    "installation_country": "CA",
+    "production_route": "secondary_recycled",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 68.63,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

@@ -65,8 +65,44 @@ class LLMClient:
             ToolCall(
                 id=call.id,
                 name=call.function.name,
-                args=json.loads(call.function.arguments),
+                args=_parse_tool_call_arguments(call.function.arguments),
             )
             for call in (message.tool_calls or [])
         ]
         return LLMResponse(content=message.content, tool_calls=tool_calls)
+
+
+def _parse_tool_call_arguments(raw_arguments) -> dict:
+    """Small local models occasionally return malformed JSON (or no JSON at
+    all) for a tool call's arguments - this is a real, expected failure mode
+    (see agent_loop.py's docstring / projecthandoff.md section 7 on 7-8B
+    models not always converging cleanly). A json.JSONDecodeError here used
+    to propagate straight out of chat(), uncaught by the tenacity retry
+    (which only retries transient network/server errors, not parsing
+    errors) and uncaught by agent_loop.py's loop body, crashing the whole
+    job instead of giving the model a chance to correct itself.
+
+    Instead, fall back to a placeholder dict that deliberately lacks every
+    tool's required fields. tools.py's Pydantic validation
+    (tool_args.TOOL_ARG_MODELS) then rejects it the same way it already
+    rejects any other malformed/missing tool arguments - a ValueError fed
+    back into the conversation as a tool error, not a crash.
+    """
+    try:
+        parsed = json.loads(raw_arguments)
+    except (TypeError, json.JSONDecodeError) as exc:
+        return {
+            "_tool_call_arguments_parse_error": (
+                f"model returned unparseable tool-call arguments: {exc}"
+            ),
+            "_raw_arguments": raw_arguments,
+        }
+    if not isinstance(parsed, dict):
+        return {
+            "_tool_call_arguments_parse_error": (
+                "model returned tool-call arguments that are valid JSON but "
+                f"not a JSON object (got {type(parsed).__name__})"
+            ),
+            "_raw_arguments": raw_arguments,
+        }
+    return parsed

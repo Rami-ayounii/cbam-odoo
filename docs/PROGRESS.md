@@ -11,14 +11,14 @@
 |-----------|--------|--------|
 | M0 — Repo scaffold & networking | **Done** | `16ec5ec` |
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
-| M2 — Calculation engine | **Done** | pending commit |
-| M3 — Odoo module (`cbam`) | **Done, unverified** | pending commit |
+| M2 — Calculation engine | **Done** | `2d89d37` |
+| M3 — Odoo module (`cbam`) | **Done, unverified** | `2d89d37` |
 | M4 — LLM inference container (Machine A) | **Blocked** (no Docker/GPU in this sandbox) | — |
-| M5 — Tool schemas | **Done** | pending commit |
-| M6 — Orchestrator agent loop | **Done, unverified live** | pending commit |
-| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | pending commit |
-| M8 — Security hardening | **Done** | pending commit |
-| M9 — Evaluation | **Harness done, real run blocked** | pending commit |
+| M5 — Tool schemas | **Done** | `2d89d37` |
+| M6 — Orchestrator agent loop | **Done, unverified live** | `2d89d37` |
+| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | `2d89d37` |
+| M8 — Security hardening | **Done** | `2d89d37` |
+| M9 — Evaluation | **Harness done, real run blocked** | `2d89d37` |
 
 ---
 
@@ -62,7 +62,7 @@
 
 ---
 
-### Research artifact — CBAM formulas (not a milestone, no commit yet)
+### Research artifact — CBAM formulas (not a milestone, commit `2d89d37`)
 
 **File:** `CBAM_Formulas_Steel_Aluminium.md`
 
@@ -79,7 +79,7 @@ Comprehensive reference sheet compiled July 2026 covering:
 
 ## What Comes Next
 
-### M2 — Calculation engine (built 2026-07-30, pending commit)
+### M2 — Calculation engine (built 2026-07-30, commit `2d89d37`)
 
 **Files created:**
 - `machineB/addons/cbam/utils/calc_engine.py` — the four functions below, plus `EmissionFactor` dataclass
@@ -130,13 +130,13 @@ those only get baked into real records in M7):
 **Done:** `pytest machineB/tests/test_calc_engine.py -v` → 15 passed, built test-first (RED confirmed
 via `ModuleNotFoundError` before `calc_engine.py` existed, then GREEN).
 
-**Not done yet:** no commit made for this work; `benchmark`, `cbam_factor_year`, and
+**Not done yet:** committed in `2d89d37`; `benchmark`, `cbam_factor_year`, and
 `reference_certificate_price` still need a real source (JRC/EU ETS benchmark decisions, the phase-out
 schedule, and the published reference certificate price) — deferred to M7 alongside emission factors.
 
 ---
 
-### M3 — Odoo module (`cbam`) (built 2026-07-30, pending commit)
+### M3 — Odoo module (`cbam`) (built 2026-07-30, commit `2d89d37`)
 
 **IMPORTANT CAVEAT — not runtime-verified.** No Docker or Odoo installation
 is available in this dev environment, so this module has only been checked
@@ -172,7 +172,7 @@ seed this data). `action_lookup_emission_factor()` on the line calls
 `calc_engine.lookup_emission_factor()` through the adapter to populate
 `emission_factor_id` — read-only selection, never writes a factor value.
 
-**Not done:** no commit yet; no live Odoo verification; no record rules yet
+**Not done:** committed in `2d89d37`; no live Odoo verification; no record rules yet
 (declarants seeing only their own declarations is M8); reference data
 (installations, goods, emission factors, year parameters) has no seed data,
 so the module is currently empty on install.
@@ -197,7 +197,7 @@ contain everything needed to run this once real hardware is available.
 
 ---
 
-### M5 — Tool schemas (built 2026-07-30, pending commit)
+### M5 — Tool schemas (built 2026-07-30, commit `2d89d37`)
 
 **Note on the "depends on M4" in the original plan:** turned out not to be a
 real blocker - these are OpenAI-compatible function-calling JSON schemas
@@ -225,7 +225,7 @@ of the schema itself.
 
 ---
 
-### M6 — Orchestrator agent loop (built 2026-07-30, pending commit)
+### M6 — Orchestrator agent loop (built 2026-07-30, commit `2d89d37`)
 
 **IMPORTANT CAVEAT — not runtime-verified against a real LLM or Odoo.**
 `fastapi`, `odoorpc`, `openai`, `tenacity`, `pydantic` were all installed
@@ -286,7 +286,14 @@ that one file.
 
 **Done:** `pytest machineB/tests/ -q` → 41 passed (15 M2 + 11 tools + 7 agent_loop + 3 llm_client + 5 main).
 
-**Not done:** no commit yet; no live LLM or Odoo was ever contacted; `SYSTEM_PROMPT` is a first draft, unrefined by any actual model behavior since M4 is blocked; in-memory job store has no persistence (acceptable for this academic scope, flagged as a known limitation).
+**Not done:** committed in `2d89d37`; no live LLM or Odoo was ever contacted; `SYSTEM_PROMPT` is a first draft, unrefined by any actual model behavior since M4 is blocked; in-memory job store has no persistence (acceptable for this academic scope, flagged as a known limitation).
+
+**Correctness/security review (2026-07-31) — 3 real bugs found and fixed, all in `machineB/orchestrator/`:**
+1. `odoo_client.py` `write_declaration_line()` called `model.create(data)`, always creating a brand-new, disconnected `cbam.declaration.line` instead of updating the job's own `declaration_line_id` (the line the source document is attached to and the one Odoo's UI reloads per this doc's own data-flow step 6). Fixed to `model.write([declaration_line_id], data)`, with `declaration_line_id` supplied from the job's own scope (`tools.py`), never from the LLM - same reasoning as the existing `declaration_id` check.
+2. `tools.py` `ToolDispatcher` had no guard against `write_declaration_line` being called more than once in a job - `agent_loop.py` only treats `flag_for_human_review` as a loop terminator, so nothing stopped a non-converging model from writing twice, violating section 7's "single write... do not let the agent write mid-loop." Added a one-shot flag on the dispatcher (not tool-ordering logic - it doesn't constrain what runs before/after, only refuses to repeat the one side-effecting call).
+3. `llm_client.py` did a bare `json.loads(call.function.arguments)` with no handling for malformed JSON - a real, expected failure mode for 7-8B models that this doc already anticipates for tool-calling generally. This raised `json.JSONDecodeError` straight out of `chat()`, uncaught by the tenacity retry (not a retryable error type) and uncaught by `agent_loop.py`, crashing the whole job instead of giving the model a chance to self-correct. Fixed to fall back to a placeholder args dict that Pydantic's existing `tool_args.py` validation rejects the same way it already rejects any other malformed tool call - fed back to the model as a tool error, not a crash.
+
+Architectural compliance re-verified: the only tool-name branch in `agent_loop.py` is still the documented `flag_for_human_review` termination check; tool execution order within a turn is preserved (not resorted); Odoo stays read-only until the single write. 3 new/updated tests added (`test_tools.py` x2, `test_llm_client.py` x1); `pytest machineB/tests/ -q` → 70 passed after the fixes (no existing test's expectations changed).
 
 ---
 
@@ -327,7 +334,7 @@ mention, but confirm this number too) - and fill in each `None` in
 
 ---
 
-### M8 — Security hardening (built/verified 2026-07-30, pending commit)
+### M8 — Security hardening (built/verified 2026-07-30, commit `2d89d37`)
 
 - **8a - Odoo record rules:** `machineB/addons/cbam/security/cbam_security_rules.xml` (new) - `ir.rule` records scoping `cbam.declaration`, `cbam.declaration.line`, and `cbam.source.document` to `[('declarant_id', '=', user.partner_id.id)]` (and the equivalent traversal for the two child models) for `base.group_user` only; `base.group_system` is untouched by these rules and keeps the unrestricted access `ir.model.access.csv` already grants. Added to `__manifest__.py`'s `data` list. Not runtime-verified (same Odoo-instance caveat as M3).
 - **8b - Pydantic tool-argument validation:** `machineB/orchestrator/tool_args.py` (new) - one Pydantic model per tool, mirroring `shared/tool_schemas/*.json` field-for-field (including the enums). `ToolDispatcher.execute()` now validates args through the matching model before calling the handler; a `ValidationError` becomes a `ValueError`, which `agent_loop.py` already catches and feeds back to the model as a tool error instead of crashing on a malformed call from a small model. 4 new tests added to `test_tools.py` (missing required arg, wrong type, invalid enum on two different tools) - all TDD'd (confirmed failing with `TypeError`/no-error before the validation existed).
@@ -361,6 +368,103 @@ factor data seeded (needed for any `data_source=default` record to resolve
 `docs/evaluation.md`.
 
 **Done:** `pytest shared/evaluation/ -v` → 10 passed (6 scoring + 4 harness).
+
+---
+
+## Full-codebase verification & bug-fix pass (2026-07-31)
+
+With M0-M9 built but never exercised end-to-end (M4 still blocked on real
+hardware), this pass reviewed every module against `projecthandoff.md` and
+this doc, ran every test suite, and fixed everything that could be fixed
+without live Odoo/Ollama/Docker infrastructure. No milestone status above
+changes (M4 is still the only real blocker), but several bugs that would
+only have surfaced once M4 unblocked and the system ran for real are fixed
+now instead.
+
+**Compliance-correctness (`calc_engine.py`, Odoo models):**
+- `calculate_embedded_emissions` was pricing `indirect_ef` into SEE for
+  steel/aluminium, contradicting this doc's own "Key Constraints" line below
+  ("direct emissions only — Annex II"). Confirmed against
+  `CBAM_Formulas_Steel_Aluminium.md` §1.2's explicit steel/aluminium
+  override and fixed: only `direct_ef` (with markup) is priced now.
+- `calculate_certificates_required`'s carbon-price deduction fraction was
+  floored at nothing, only capped at 1.0 — a negative
+  `carbon_price_paid_origin` could inflate certificates owed instead of
+  reducing them. Floored at 0.0.
+- `cbam_declaration_line.py`'s `certificates_required` looked up
+  `cbam.year.parameter` via an untracked `search()` inside the compute
+  method, so editing an existing year-parameter record wouldn't trigger
+  recompute. Added a real stored `year_parameter_id` field with correct
+  `@api.depends`.
+- Added `ondelete="restrict"` to 5 required Many2one fields that had none.
+- Added `_check_sector_consistency` — nothing previously stopped a line
+  pairing a steel good with an aluminium installation (each sector lives on
+  its own unrelated Selection field); now raises a `ValidationError`.
+
+**Orchestrator (`machineB/orchestrator/`):** see the M6 section above for
+the 3 bugs fixed there (orphan-record write, missing single-write guard,
+crash on malformed LLM tool-call JSON). Additionally, `MAX_AGENT_ITERATIONS`
+is now clamped to `[8, 10]` in `main.py` regardless of env misconfiguration,
+matching section 7's "hard iteration cap (8-10 loops)" exactly instead of
+trusting the env var unclamped. `ORCHESTRATOR_API_KEY` enforcement
+(fail-closed, constant-time comparison, checked on both endpoints) was
+reviewed and found already correct — no change needed.
+
+**Infra (`machineA/`, `machineB/docker-compose.yml`, Dockerfile):** 3
+deployment-breaking bugs fixed — the nginx template's invalid nested
+`http`/`events` blocks (nginx would refuse to start), the missing
+`OLLAMA_API_KEY` in the nginx container's own environment (the key check
+was unsatisfiable by any caller), and the Tailscale sidecar missing the
+`internal` Docker network (Postgres was structurally unreachable from
+Odoo). Also added a non-root Dockerfile user and a `.dockerignore`.
+
+**Cross-module contracts:** `lookup_default_value`'s tool result never
+actually included `emission_factor_id`, even though
+`write_declaration_line.json` documents it as required when
+`data_source=default` and `tool_args.py`'s own validator enforces that —
+the "use a default emission factor" write path was structurally uncallable
+end to end. Fixed by threading the Odoo/RPC record id through
+`EmissionFactor` and into the tool's return dict. Also fixed
+`seed_emission_factors.py`'s benchmark seeding, which matched `cbam.good`
+by `cn_code` alone despite `cbam_good.py`'s own `unique(cn_code, sector)`
+constraint — could bleed a benchmark across sectors sharing a CN code.
+
+**Synthetic data generator (`shared/synthetic_data/generator.py`):**
+- Crashed outright on Windows (`write_text` with no explicit encoding hit
+  the cp1252 fallback against the generator's own Unicode box-drawing
+  characters). Fixed with explicit `encoding="utf-8"` throughout.
+- 3 internal-consistency bugs where ground truth claimed a field was
+  present/extractable that the generated document text never actually
+  contained (mill-certificate fields wrongly gated together, carbon
+  intensity reports never stating quantity at all, customs declarations
+  never carrying emissions data without being flagged as
+  `missing_fields`). All fixed.
+- `record_id` was built from `uuid.uuid4()`, ignoring `--seed` entirely —
+  re-running the documented reproducible-seed command
+  (`python generator.py --count 50 --seed 42 --outdir output/`) silently
+  accumulated a second copy of every record under new filenames instead of
+  reproducing the same output. Fixed to derive the id from the seeded rng;
+  verified a repeat run with the same seed now produces byte-identical
+  output. `output/` was regenerated with the fixed generator (was stale
+  relative to the 3 consistency fixes above).
+- `shared/evaluation/scoring.py`'s `_values_match()` raised `TypeError` on
+  a type-mismatched ground-truth/written pair instead of coercing or
+  returning `False` — fixed to coerce with a `try/except` fallback to `False`.
+
+**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 108
+passed (was 103 before this pass; net +5 from new regression tests, no
+existing test's expected values needed changing). All `.py` files compile,
+all `.xml` files parse. All Odoo-model-layer fixes remain
+statically-verified only (see M3's caveat — still no live Odoo instance
+available in this environment).
+
+**Deliberately left as-is (flagged, not bugs):** unpinned
+`requirements.txt`/`:latest` image tags (matches section 10's package list
+exactly, judgment call to leave until a real deployment picks concrete
+versions); `main.py`'s in-memory job dict has no explicit lock (safe today
+under CPython's GIL since each background task only touches its own uuid
+key); nginx's plain-HTTP listener on 8443 (intentional — the Tailscale
+WireGuard tunnel is the encryption layer, documented in M8c).
 
 ---
 

@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0011-B7861C",
+  "document_type": "mill_certificate",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\n    MILL TEST CERTIFICATE — EN 10204 TYPE 3.1\n    Certificate No : CERT-4369-MPU\n    Date           : 2026-07-30\n    ══════════════════════════════════════════════════════════════════\n\n    MANUFACTURER\n    Name     : ALCOM Tunisia Tunis\n    Country  : Tunisia (TN)\n    Address  : Unit 9176 Box 9367, DPO AA 32480\n\n    PRODUCT IDENTIFICATION\n    CN Code      : 7604.10.10\n    Description  : Bars, rods and profiles of aluminium, not alloyed\n    Heat / Batch : H-777387\n    Grade        : EN AW-6060\n    Standard     : EN 573-3:2019\n\n    QUANTITY\n    Net mass : 227.43 t\n\n    CHEMICAL COMPOSITION (% by mass, ladle analysis)\n    Si: 0.45  Mg: 0.52  Fe: 0.21  Cu: 0.08  Mn: 0.06  Cr: 0.04\n\n    MECHANICAL PROPERTIES\n    0.2% proof stress: 195 MPa   Tensile strength: 225 MPa   Elongation: 11%\n\nCARBON INTENSITY DECLARATION (CBAM Annex III)\nProduction route          : primary_electrolysis\nDirect embedded emissions : 0.339 tCO2e/t\nIndirect embedded emissions: 11.318 tCO2e/t\n\n    ══════════════════════════════════════════════════════════════════\n    Authorised Signatory: Michael Stafford\n    This certificate is issued in accordance with EN 10204:2004.\n    ══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7604.10.10",
+    "description": "Bars, rods and profiles of aluminium, not alloyed",
+    "sector": "aluminium",
+    "quantity_tonnes": 227.43,
+    "installation_name": "ALCOM Tunisia Tunis",
+    "installation_country": "TN",
+    "production_route": "primary_electrolysis",
+    "data_source": "actual",
+    "direct_emissions_actual": 0.339,
+    "indirect_emissions_actual": 11.318,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

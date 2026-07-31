@@ -69,7 +69,7 @@ def _make_dispatcher(
     )
 
 
-def _make_factor(direct_ef=1.9):
+def _make_factor(direct_ef=1.9, id=7):
     return EmissionFactor(
         sector="steel",
         route="BF-BOF",
@@ -80,6 +80,7 @@ def _make_factor(direct_ef=1.9):
         source_document="test-fixture",
         valid_from=date(2026, 1, 1),
         valid_to=None,
+        id=id,
     )
 
 
@@ -119,7 +120,7 @@ def test_extract_field_rejects_document_outside_job_scope():
 
 
 def test_lookup_default_value_returns_emission_factor_fields():
-    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=1.9)])
+    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=1.9, id=7)])
     dispatcher = _make_dispatcher(odoo_client)
 
     result = dispatcher.execute(
@@ -129,6 +130,11 @@ def test_lookup_default_value_returns_emission_factor_fields():
     assert result["direct_ef"] == pytest.approx(1.9)
     assert result["markup_pct"] == pytest.approx(0.10)
     assert result["source_document"] == "test-fixture"
+    # write_declaration_line.json documents that emission_factor_id "comes
+    # from lookup_default_value's result" - regression test for the bug
+    # where this key was simply absent, making a data_source="default" write
+    # impossible (WriteDeclarationLineArgs requires it in that case).
+    assert result["emission_factor_id"] == 7
 
 
 def test_lookup_default_value_propagates_not_found_as_exception():
@@ -263,6 +269,54 @@ def test_write_declaration_line_delegates_to_odoo_client_and_never_runs_mid_loop
 
     assert result["declaration_line_id"] == 7
     assert odoo_client.written["declaration_id"] == 1
+
+
+def test_write_declaration_line_targets_the_jobs_existing_declaration_line():
+    # write_declaration_line must UPDATE the line the job/source document is
+    # already scoped to (self.declaration_line_id), never create a new,
+    # disconnected record - see odoo_client.OdooClient.write_declaration_line
+    # for why (the UI/source-document trail would silently point at a
+    # different record than the one that got filled in).
+    odoo_client = FakeOdooClient(write_result_id=7)
+    dispatcher = _make_dispatcher(odoo_client, declaration_line_id=100)
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "default",
+            "emission_factor_id": 9,
+        },
+    )
+
+    assert odoo_client.written["declaration_line_id"] == 100
+    assert result["declaration_line_id"] == 7
+
+
+def test_write_declaration_line_rejects_a_second_call_in_the_same_job():
+    # projecthandoff.md section 7: "Single write at the end... Do not let
+    # the agent write mid-loop." Nothing in agent_loop.py stops the model
+    # from calling this tool twice (only flag_for_human_review terminates
+    # the loop early), so the dispatcher itself must refuse a repeat.
+    odoo_client = FakeOdooClient(write_result_id=7)
+    dispatcher = _make_dispatcher(odoo_client)
+    args = {
+        "declaration_id": 1,
+        "good_id": 2,
+        "installation_id": 3,
+        "quantity_tonnes": 100.0,
+        "data_source": "default",
+        "emission_factor_id": 9,
+    }
+
+    first = dispatcher.execute("write_declaration_line", args)
+    assert first["declaration_line_id"] == 7
+
+    with pytest.raises(ValueError):
+        dispatcher.execute("write_declaration_line", args)
 
 
 def test_write_declaration_line_requires_emission_factor_id_for_default_source():

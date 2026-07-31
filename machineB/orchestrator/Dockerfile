@@ -17,6 +17,13 @@ COPY machineB/orchestrator/*.py ./
 COPY machineB/addons/cbam/utils/calc_engine.py ./calc_engine.py
 COPY shared/tool_schemas/ ./shared/tool_schemas/
 
+# Run as a non-root user. Nothing here needs root: pip installed system-wide
+# above (before switching user), the app only listens on 8000 (unprivileged),
+# and it has no need to write outside /app.
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

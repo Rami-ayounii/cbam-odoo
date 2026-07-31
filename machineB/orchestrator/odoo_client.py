@@ -80,9 +80,23 @@ class OdooClient:
     def get_emission_factor_session(self):
         return OdoorpcEmissionFactorSession(self._odoo)
 
-    def write_declaration_line(self, **data):
+    def write_declaration_line(self, declaration_line_id, **data):
+        # Updates the existing job-scoped line (the one the source document
+        # is attached to and the one Odoo's UI is polling/displaying - see
+        # docs/PROGRESS.md's data flow step 6: "Odoo polls -> sees completed
+        # -> reloads the declaration line record", singular, the same
+        # record). This used to call model.create(data), which created a
+        # brand-new, disconnected cbam.declaration.line under the right
+        # declaration but with no link back to the source document or to
+        # the declaration_line_id the job/UI was actually tracking - the
+        # line the user was looking at would stay empty forever while an
+        # orphan record silently held the real data. declaration_line_id is
+        # supplied by the job's own scope (tools.py), never by the LLM, for
+        # the same reason declaration_id is checked there: the write target
+        # must not be something an LLM tool call gets to pick.
         model = self._odoo.env["cbam.declaration.line"]
-        return model.create(data)
+        model.write([declaration_line_id], data)
+        return declaration_line_id
 
     def write_llm_trace(self, declaration_line_id, messages, extraction_status):
         # The intended audit trail (cbam_source_document.raw_llm_output) was

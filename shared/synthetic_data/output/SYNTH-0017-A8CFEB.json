@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0017-A8CFEB",
+  "document_type": "customs_declaration",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-5574-443135\nDate of acceptance: 2026-07-30\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Herrera, Gill and Lopez SRL\nAddress : 9894 Marissa Hill Apt. 524, Lake Amandaview, AZ 07647\nEORI    : EU84271094777520\n\nGOODS\nCN Code     : 7601.10.00\nDescription : Unwrought aluminium, not alloyed\nNet mass    : 364.86 tonnes\nCustoms value: EUR 263,538.23\n\nORIGIN\nCountry of origin : Iceland (IS)\nExporter / Manufacturer: ISAL Aluminium Iceland\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7601.10.00",
+    "description": "Unwrought aluminium, not alloyed",
+    "sector": "aluminium",
+    "quantity_tonnes": 364.86,
+    "installation_name": "ISAL Aluminium Iceland",
+    "installation_country": "IS",
+    "production_route": "primary_electrolysis",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 53.45,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

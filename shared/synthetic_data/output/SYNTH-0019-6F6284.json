@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0019-6F6284",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-8324-JE\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Eregli Iron and Steel Works\nCountry  : Turkey (TR)\nSector   : Steel\nProduction route: BF-BOF\nQuantity covered   : 496.23 t\n\nEMISSIONS DATA\n\n\n\nMonitoring approach: Third-party verified monitoring plan — see annex\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Terri Mason\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7214.20.00",
+    "description": "Other bars and rods of iron, forged",
+    "sector": "steel",
+    "quantity_tonnes": 496.23,
+    "installation_name": "Eregli Iron and Steel Works",
+    "installation_country": "TR",
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

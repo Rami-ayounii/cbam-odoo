@@ -31,6 +31,15 @@ class EmissionFactor:
     source_document: str
     valid_from: date
     valid_to: Optional[date]  # None means still in effect
+    # The cbam.emission.factor record id (Odoo primary key), when this
+    # EmissionFactor was built from a real record via
+    # emission_factor_from_record(). None for hand-built test fixtures.
+    # Required so tools.py's lookup_default_value handler can hand the model
+    # an emission_factor_id it can then pass to write_declaration_line -
+    # write_declaration_line.json's own description promises this id "comes
+    # from lookup_default_value's result", so it must actually be present
+    # in that result.
+    id: Optional[int] = None
 
 
 def emission_factor_from_record(record) -> EmissionFactor:
@@ -49,6 +58,7 @@ def emission_factor_from_record(record) -> EmissionFactor:
         source_document=record.source_document,
         valid_from=record.valid_from,
         valid_to=record.valid_to or None,
+        id=record.id,
     )
 
 
@@ -66,17 +76,28 @@ def calculate_embedded_emissions(
 ) -> float:
     """Total embedded emissions (t CO2e) for a declaration line.
 
-    SEE = (direct_ef + indirect_ef) * (1 + markup_pct) (indirect is 0 for
-    steel/aluminium per Annex II, but kept general per the formula sheet
-    section 1.2). markup_pct is the IR 2025/2621 yearly markup on CBAM
-    default values (10% in 2026, rising through 2028) - callers must pass
-    0.0 (the default) for data_source = "actual", since the markup only
-    applies when the EF itself is a looked-up default, not a measured value.
+    SEE = direct_ef * (1 + markup_pct). Per formula sheet section 1.2, iron &
+    steel and aluminium are both listed in Annex II of Reg. (EU) 2023/956, so
+    only DIRECT emissions are priced: "SEEg = SEE(direct,g) [indirect/
+    electricity term = 0 for steel & aluminium]". This module covers steel
+    and aluminium exclusively (projecthandoff.md section 3), so indirect_ef
+    is deliberately excluded from the SEE sum - not merely expected to be
+    0, actively ignored - so that a non-zero indirect_ef (e.g. a measured
+    indirect_emissions_actual value entered for reporting/statistics only,
+    per the formula sheet's note that electricity consumption is "tracked
+    for reporting/statistics but is currently not charged") can never leak
+    into the compliance number. The parameter stays in the signature purely
+    so indirect data can still be threaded through/recorded by callers
+    without an API break.
+    markup_pct is the IR 2025/2621 yearly markup on CBAM default values (10%
+    in 2026, rising through 2028) - callers must pass 0.0 (the default) for
+    data_source = "actual", since the markup only applies when the EF itself
+    is a looked-up default, not a measured value.
     precursor_emissions is already an absolute t CO2e figure carried over
     from upstream materials (formula sheet section 1.6), not a per-tonne EF,
     so it is added after the markup rather than being marked up itself.
     """
-    see = (direct_ef + indirect_ef) * (1 + markup_pct)
+    see = direct_ef * (1 + markup_pct)
     return quantity_tonnes * see + precursor_emissions
 
 
@@ -95,7 +116,11 @@ def calculate_certificates_required(
 
     carbon_price_adjustment_fraction is the verified carbon price already
     paid in the country of production, expressed as a fraction of the
-    reference CBAM certificate price, capped at 1.0 (fully offset).
+    reference CBAM certificate price, clamped to [0.0, 1.0]: capped at 1.0
+    (fully offset) so an overpayment can't push the result negative, and
+    floored at 0.0 so a negative/erroneous carbon_price_paid_origin can't
+    flip the adjustment into a surcharge that *increases* the certificate
+    requirement above the raw benchmark-deducted total.
     Never negative: a free-allocation or price deduction cannot create a
     negative certificate requirement.
     """
@@ -104,7 +129,7 @@ def calculate_certificates_required(
 
     if reference_certificate_price > 0:
         price_adjustment_fraction = min(
-            carbon_price_paid_origin / reference_certificate_price, 1.0
+            max(carbon_price_paid_origin / reference_certificate_price, 0.0), 1.0
         )
     else:
         price_adjustment_fraction = 0.0

@@ -224,7 +224,14 @@ def seed_odoo(env, allow_incomplete: bool = False) -> None:
         )
 
     for seed in GOOD_BENCHMARK_SEEDS:
-        good_ids = env["cbam.good"].search([("cn_code", "=", seed.cn_code)])
+        # cbam.good's own sql_constraint is unique(cn_code, sector), not
+        # cn_code alone - the same CN code can legitimately exist under two
+        # different sectors, so this must scope by both, or a steel seed's
+        # benchmark could bleed into an aluminium good that happens to share
+        # a cn_code (or vice versa).
+        good_ids = env["cbam.good"].search(
+            [("cn_code", "=", seed.cn_code), ("sector", "=", seed.sector)]
+        )
         for good_id in good_ids:
             env["cbam.good"].write([good_id], {"benchmark": seed.benchmark})
 

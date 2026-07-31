@@ -15,6 +15,15 @@ services:
       - NET_ADMIN
       - SYS_MODULE
     restart: unless-stopped
+    # Also join "internal": odoo and orchestrator use
+    # `network_mode: service:tailscale`, meaning they run inside this
+    # container's network namespace instead of getting their own. Docker's
+    # embedded DNS only resolves a service name (e.g. "db") for containers
+    # that share a network with that service. Without this, "db" is
+    # unresolvable from odoo/orchestrator and Odoo cannot reach Postgres.
+    networks:
+      - default
+      - internal
 
   db:
     image: postgres:16

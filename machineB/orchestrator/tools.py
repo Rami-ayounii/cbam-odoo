@@ -47,6 +47,19 @@ class ToolDispatcher:
         self.declaration_date = declaration_date
         self.declaration_id = declaration_id
         self.declaration_line_id = declaration_line_id
+        # Set the first (and only allowed) time write_declaration_line
+        # succeeds. projecthandoff.md section 7's design constraints are
+        # explicit: "Single write at the end... Do not let the agent write
+        # mid-loop." Nothing about the loop itself (agent_loop.py) stops the
+        # model from calling write_declaration_line more than once - it only
+        # special-cases flag_for_human_review as a terminator - and small
+        # local models are documented as not always converging cleanly. This
+        # flag is a safety backstop against a real risk (duplicate/second
+        # write), not tool-ordering logic: it doesn't say what may run
+        # before or after write_declaration_line, it only refuses to repeat
+        # the one side-effecting action itself, which the tool's own schema
+        # description already documents as "must be called at most once".
+        self._declaration_line_written = False
         self._handlers = {
             "extract_field": self._extract_field,
             "lookup_default_value": self._lookup_default_value,
@@ -98,6 +111,14 @@ class ToolDispatcher:
             "indirect_ef": factor.indirect_ef,
             "markup_pct": factor.markup_pct,
             "source_document": factor.source_document,
+            # write_declaration_line.json's own description says
+            # emission_factor_id "comes from lookup_default_value's result" -
+            # without this key that promise was unmet: there was no way for
+            # the model to obtain an emission_factor_id at all, making
+            # write_declaration_line(data_source="default") uncallable
+            # (WriteDeclarationLineArgs requires emission_factor_id whenever
+            # data_source == "default").
+            "emission_factor_id": factor.id,
         }
 
     def _check_consistency(self, extracted_data):
@@ -161,11 +182,20 @@ class ToolDispatcher:
         return {"embedded_emissions_total": embedded_emissions_total}
 
     def _write_declaration_line(self, **data):
+        if self._declaration_line_written:
+            raise ValueError(
+                "write_declaration_line was already called once for this "
+                "job - refusing a second write (single write at the end, "
+                "per the design constraints)"
+            )
         if data["declaration_id"] != self.declaration_id:
             raise ValueError(
                 f"write_declaration_line declaration_id={data['declaration_id']} "
                 f"does not match this job's declaration_id={self.declaration_id} "
                 "- refusing cross-declaration write"
             )
-        record_id = self.odoo_client.write_declaration_line(**data)
+        record_id = self.odoo_client.write_declaration_line(
+            declaration_line_id=self.declaration_line_id, **data
+        )
+        self._declaration_line_written = True
         return {"declaration_line_id": record_id}

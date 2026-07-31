@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0002-C21209",
+  "document_type": "customs_declaration",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nSINGLE ADMINISTRATIVE DOCUMENT — IMPORT ENTRY SUMMARY\nDeclaration No : IM-5030-564139\nDate of acceptance: 2026-07-30\n══════════════════════════════════════════════════════════════════\n\nIMPORTER\nName    : Rios Group SRL\nAddress : 42388 Burgess Meadow Suite 532, Daviston, VI 14872\nEORI    : EU22691669784801\n\nGOODS\nCN Code     : 7604.10.10\nDescription : Bars, rods and profiles of aluminium, not alloyed\nNet mass    : 180.49 tonnes\nCustoms value: EUR 268,882.61\n\nORIGIN\nCountry of origin : Morocco (MA)\nExporter / Manufacturer: Aluminium of Morocco\n\nPROCEDURE: 40 00 — Release for free circulation\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7604.10.10",
+    "description": "Bars, rods and profiles of aluminium, not alloyed",
+    "sector": "aluminium",
+    "quantity_tonnes": 180.49,
+    "installation_name": "Aluminium of Morocco",
+    "installation_country": "MA",
+    "production_route": "primary_electrolysis",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

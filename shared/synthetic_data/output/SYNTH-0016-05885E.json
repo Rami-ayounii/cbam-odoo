@@ -1,0 +1,22 @@
+{
+  "record_id": "SYNTH-0016-05885E",
+  "document_type": "carbon_intensity_report",
+  "difficulty": "easy",
+  "document_text": "══════════════════════════════════════════════════════════════════\nCBAM CARBON INTENSITY REPORT\nReport No      : CIR-7527-NW\nReporting year : 2026\n══════════════════════════════════════════════════════════════════\n\nINSTALLATION\nName     : Baowu Baosteel Shanghai\nCountry  : China (CN)\nSector   : Steel\nProduction route: BF-BOF\nQuantity covered   : 56.53 t\n\nEMISSIONS DATA\n\n\nCarbon price paid at origin: 11.14 EUR/tCO2e (ETS compliance)\nMonitoring approach: Calculation approach based on activity data and emission factors (Annex III, Reg 2023/956)\nVerification status: Third-party verified\n\nDECLARATION\nI, the undersigned, declare that the information provided above is\naccurate and complete to the best of my knowledge.\n\nSigned: Jason Peters\nDate  : 2026-07-30\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7306.30.41",
+    "description": "Welded tubes and pipes of circular cross-section, iron",
+    "sector": "steel",
+    "quantity_tonnes": 56.53,
+    "installation_name": "Baowu Baosteel Shanghai",
+    "installation_country": "CN",
+    "production_route": "BF-BOF",
+    "data_source": "default",
+    "direct_emissions_actual": null,
+    "indirect_emissions_actual": null,
+    "carbon_price_paid_origin": 11.14,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": []
+  }
+}

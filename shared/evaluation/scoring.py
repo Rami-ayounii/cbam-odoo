@@ -22,7 +22,18 @@ def _values_match(ground_truth_value, written_value) -> bool:
     if isinstance(ground_truth_value, float) or isinstance(written_value, float):
         if ground_truth_value is None or written_value is None:
             return False
-        return abs(ground_truth_value - written_value) < _FLOAT_TOLERANCE
+        # written_value normally reaches here already coerced to float by
+        # tool_args.py's Pydantic validation (the real agent-loop path), but
+        # score_record is a standalone, independently-tested function (see
+        # module docstring) that may be called directly with raw dict data -
+        # e.g. a numeric string. float(...) makes that coercion explicit
+        # instead of crashing with a bare TypeError on `float - str`, and a
+        # genuinely non-numeric value (a coercion failure) is correctly
+        # scored as a mismatch rather than propagating an exception.
+        try:
+            return abs(float(ground_truth_value) - float(written_value)) < _FLOAT_TOLERANCE
+        except (TypeError, ValueError):
+            return False
     return ground_truth_value == written_value
 
 

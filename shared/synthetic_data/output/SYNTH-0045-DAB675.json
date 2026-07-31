@@ -1,0 +1,25 @@
+{
+  "record_id": "SYNTH-0045-DAB675",
+  "document_type": "mill_certificate",
+  "difficulty": "hard",
+  "document_text": "══════════════════════════════════════════════════════════════════\nMILL TEST CERTIFICATE — EN 10204 TYPE 3.1\nCertificate No : CERT-8922-BGD\nDate           : 2026-07-30\n══════════════════════════════════════════════════════════════════\n\nMANUFACTURER\nName     : SIMETAL Morocco Casablanca\nCountry  : Morocco (MA)\nAddress  : 99590 Christopher Row, Debrashire, MT 81517\n\nPRODUCT IDENTIFICATION\nCN Code      : 7217.10.10\nDescription  : Wire of iron or non-alloy steel, not plated\nHeat / Batch : H-182422\nGrade        : S355JR\nStandard     : EN 10025-2:2019\n\nQUANTITY\nNet mass : 326.81 t\n\nCHEMICAL COMPOSITION (% by mass, ladle analysis)\nC: 0.18  Mn: 1.42  Si: 0.38  P: 0.018  S: 0.012  N: 0.006\n\nMECHANICAL PROPERTIES\nYield strength (ReH): 382 MPa   Tensile strength (Rm): 541 MPa   Elongation (A5): 26%\n\n══════════════════════════════════════════════════════════════════\nAuthorised Signatory: Kathleen Burton\nThis certificate is issued in accordance with EN 10204:2004.\n══════════════════════════════════════════════════════════════════",
+  "ground_truth": {
+    "cn_code": "7217.10.10",
+    "description": "Wire of iron or non-alloy steel, not plated",
+    "sector": "steel",
+    "quantity_tonnes": 326.81,
+    "installation_name": "SIMETAL Morocco Casablanca",
+    "installation_country": "MA",
+    "production_route": "BF-BOF",
+    "data_source": "actual",
+    "direct_emissions_actual": 2.138,
+    "indirect_emissions_actual": 0.053,
+    "carbon_price_paid_origin": 0.0,
+    "precursor_emissions": 0.0,
+    "is_complex_good": false,
+    "missing_fields": [
+      "indirect_emissions_actual",
+      "direct_emissions_actual"
+    ]
+  }
+}
