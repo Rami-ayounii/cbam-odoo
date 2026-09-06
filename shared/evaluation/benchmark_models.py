@@ -10,6 +10,7 @@ so this benchmark can't be more lenient than production.
 """
 
 import json
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,18 @@ from typing import List, Optional
 
 from pydantic import ValidationError
 
-from tool_args import TOOL_ARG_MODELS
+# Standalone-runnable bootstrap: machineB/orchestrator only lands on
+# sys.path automatically when pytest loads shared/evaluation/conftest.py.
+# The brief's own Step 6 runs this file directly with plain `python
+# benchmark_models.py ...` (no pytest involved), so the same path needs to
+# be inserted here too - mirroring conftest.py's REPO_ROOT computation -
+# or `from tool_args import ...` below fails with ModuleNotFoundError.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
+if str(_ORCHESTRATOR_DIR) not in sys.path:
+    sys.path.insert(0, str(_ORCHESTRATOR_DIR))
+
+from tool_args import TOOL_ARG_MODELS  # noqa: E402 - needs the sys.path bootstrap above
 
 TOOL_SCHEMA_DIR = Path(__file__).resolve().parent.parent / "tool_schemas"
 
@@ -103,7 +115,10 @@ def build_report_markdown(results: List[BenchmarkResult]) -> str:
         "validation (machineB/orchestrator/tool_args.py).",
         "",
     ]
-    for r in sorted(results, key=lambda r: -r.valid_rate):
+    # Same ordering key as the winner selection below (valid_rate desc,
+    # then latency asc) so the displayed ranking never disagrees with which
+    # model gets declared the winner.
+    for r in sorted(results, key=lambda r: (-r.valid_rate, r.avg_latency_s)):
         lines.append(f"## {r.model}")
         lines.append(f"- Valid tool calls: {r.valid_count}/{r.attempts} ({r.valid_rate:.0%})")
         lines.append(f"- Avg latency: {r.avg_latency_s:.1f}s")

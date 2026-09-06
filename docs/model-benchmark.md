@@ -19,6 +19,18 @@ Notes:
   1 this benchmark requires per attempt (see their sample errors below) -
   a real, reproducible tool-discipline difference between models, not a
   benchmark bug.
+- Methodology note, corrected: this benchmark scores a tool call valid only
+  when the model emits exactly one well-formed call per turn. The real
+  orchestrator (`machineB/orchestrator/agent_loop.py`) actually executes
+  every tool call a model emits in a turn (`for call in
+  response.tool_calls: ...`) with no single-call restriction - it is more
+  permissive than this benchmark on that specific point, not equivalent to
+  it. So a model scored 0% here for emitting multiple calls per turn (e.g.
+  qwen3:8b, qwen2.5:14b-instruct above) may still perform differently
+  against the real agent loop. What this benchmark actually measures is
+  single-call discipline plus argument correctness (the latter via the
+  exact same production Pydantic validation, `tool_args.py`) - not raw
+  production tolerance for how many calls a turn may contain.
 
 ## llama3.1:8b
 - Valid tool calls: 5/10 (50%)
