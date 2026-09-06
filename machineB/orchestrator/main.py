@@ -156,13 +156,17 @@ def _run_job(job_id: str, request: JobRequest):
             declaration_id=request.declaration_id,
             declaration_line_id=request.declaration_line_id,
         )
+        line_context = odoo_client.get_declaration_line_context(request.declaration_line_id)
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": (
                     f"Process declaration_id={request.declaration_id} "
-                    f"declaration_line_id={request.declaration_line_id}."
+                    f"declaration_line_id={request.declaration_line_id}.\n"
+                    "Known context already set on this declaration line "
+                    "(read-only, you did not extract this yourself): "
+                    f"{json.dumps(line_context)}"
                 ),
             },
         ]

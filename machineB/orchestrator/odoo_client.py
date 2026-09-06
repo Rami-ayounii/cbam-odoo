@@ -80,6 +80,27 @@ class OdooClient:
     def get_emission_factor_session(self):
         return OdoorpcEmissionFactorSession(self._odoo)
 
+    def get_declaration_line_context(self, declaration_line_id):
+        """Read-only snapshot of the fields already set on this line before
+        the job starts (good/installation/quantity - see main.py's
+        docstring on why the model needs this, since no tool exists to look
+        up a good's CN code or an installation's country from scratch)."""
+        model = self._odoo.env["cbam.declaration.line"]
+        record = model.browse(int(declaration_line_id))
+        return {
+            "declaration_id": record.declaration_id.id,
+            "reporting_year": record.declaration_id.reporting_year,
+            "good_id": record.good_id.id,
+            "good_cn_code": record.good_id.cn_code,
+            "good_sector": record.good_id.sector,
+            "installation_id": record.installation_id.id,
+            "installation_name": record.installation_id.name,
+            "installation_country": record.installation_id.country,
+            "production_route": record.installation_id.production_route_id.code,
+            "quantity_tonnes": record.quantity_tonnes,
+            "data_source": record.data_source,
+        }
+
     def write_declaration_line(self, declaration_line_id, **data):
         # Updates the existing job-scoped line (the one the source document
         # is attached to and the one Odoo's UI is polling/displaying - see

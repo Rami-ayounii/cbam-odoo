@@ -157,6 +157,9 @@ def test_run_job_writes_audit_trail_on_completion(monkeypatch):
         def __init__(self, **kwargs):
             pass
 
+        def get_declaration_line_context(self, declaration_line_id):
+            return {}
+
         def write_llm_trace(self, declaration_line_id, messages, extraction_status):
             captured["declaration_line_id"] = declaration_line_id
             captured["messages"] = messages
@@ -212,3 +215,41 @@ def test_redact_secrets_replaces_all_configured_secret_values(monkeypatch):
     assert "pw-value" not in result
     assert "ollama-key-value" not in result
     assert "orch-key-value" not in result
+
+
+def test_run_job_includes_declaration_line_context_in_initial_user_message(monkeypatch):
+    _set_run_job_env(monkeypatch)
+
+    class FakeOdooClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def get_declaration_line_context(self, declaration_line_id):
+            return {"good_id": 5, "installation_id": 7, "quantity_tonnes": 41.88}
+
+        def write_llm_trace(self, **kwargs):
+            pass
+
+    captured = {}
+
+    class CapturingLLMClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def chat(self, messages, tools):
+            captured["messages"] = messages
+            return _FakeLLMResponse()
+
+    monkeypatch.setattr(main, "OdooClient", FakeOdooClient)
+    monkeypatch.setattr(main, "LLMClient", CapturingLLMClient)
+
+    job_id = "job-context-test"
+    main._JOBS[job_id] = {"status": "pending"}
+    request = main.JobRequest(declaration_id=1, declaration_line_id=2, reporting_year=2026)
+
+    main._run_job(job_id, request)
+
+    user_message = captured["messages"][1]["content"]
+    assert '"good_id": 5' in user_message
+    assert '"installation_id": 7' in user_message
+    assert '"quantity_tonnes": 41.88' in user_message
