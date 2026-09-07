@@ -171,7 +171,12 @@ def seed_dev_fixtures_odoo(env) -> dict:
                     "indirect_ef": f.indirect_ef,
                     "markup_pct": f.markup_pct,
                     "source_document": DEV_SOURCE_LABEL,
-                    "valid_from": VALID_FROM,
+                    # odoorpc's JSON-RPC transport can't serialize a raw
+                    # datetime.date - Odoo's ORM accepts ISO date strings on
+                    # the wire regardless, so isoformat() here (not
+                    # VALID_FROM itself, which build_emission_factor_session
+                    # still needs as a real date for calc_engine.EmissionFactor).
+                    "valid_from": VALID_FROM.isoformat(),
                 }
             )
 
