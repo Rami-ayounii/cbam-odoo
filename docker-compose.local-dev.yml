@@ -94,8 +94,13 @@ services:
     environment:
       # Address the gate as `ollama:8443`, not `nginx:8443` - see header
       # comment: nginx has no network identity of its own once it joins
-      # ollama's network namespace.
-      - OLLAMA_BASE_URL=http://ollama:8443
+      # ollama's network namespace. The /v1 suffix is required: the openai
+      # SDK (llm_client.py) appends `/chat/completions` to this base_url
+      # verbatim, and Ollama's OpenAI-compatible API only exists under
+      # /v1/chat/completions - without it every real request 404s (only
+      # found live, in Task 6's M6 smoke test - every earlier test used a
+      # fake client and never hit the real gate/Ollama).
+      - OLLAMA_BASE_URL=http://ollama:8443/v1
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - ODOO_URL=http://odoo:8069
       - ODOO_DB=${ODOO_DB:-cbam}

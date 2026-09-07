@@ -46,7 +46,22 @@ class LLMClient:
         # backs off exponentially and honors a Retry-After header on 429s -
         # the default of 2 is too low for a cloud endpoint under real load,
         # so this raises the floor rather than reimplementing that logic.
-        self._client = client or OpenAI(base_url=base_url, api_key=api_key, max_retries=max_retries)
+        #
+        # default_headers sets X-Api-Key explicitly: the openai SDK's own
+        # `api_key` param only ever produces an `Authorization: Bearer`
+        # header, but the nginx gate in front of Ollama (machineA/
+        # nginx.conf.template, reused byte-for-byte - see
+        # docker-compose.local-dev.yml's nginx service comment) checks
+        # $http_x_api_key, not Authorization. Without this, every real
+        # request through the gate 401s - this was never exercised until
+        # M6's first live run (Task 6) because every earlier test used a
+        # fake LLMClient/OpenAI client and never talked to the real gate.
+        self._client = client or OpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            max_retries=max_retries,
+            default_headers={"X-Api-Key": api_key} if api_key else None,
+        )
 
     @retry(
         stop=stop_after_attempt(5),

@@ -2,15 +2,27 @@
 <odoo>
 
     <!-- M8: declarants see only their own declarations. Scoped to
-         base.group_user only - base.group_system (managers) get no rule
-         here, so they keep the unrestricted access ir.model.access.csv
-         already grants them. -->
+         base.group_user; base.group_system (managers) get an explicit
+         unrestricted companion rule below - stock Odoo's "Settings" group
+         implies "Internal User" (admin is a member of both), so without
+         a permissive group_system rule to OR against, the group_user
+         rule below would still apply to admin/managers and wrongly
+         restrict them too. ir.rule combines domains from every rule whose
+         group the user belongs to with OR, so the group_system rule's
+         [(1,'=',1)] domain is what actually keeps managers unrestricted. -->
 
     <record id="rule_cbam_declaration_own" model="ir.rule">
         <field name="name">Declarants see only their own declarations</field>
         <field name="model_id" ref="model_cbam_declaration"/>
         <field name="domain_force">[('declarant_id', '=', user.partner_id.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_cbam_declaration_manager_all" model="ir.rule">
+        <field name="name">Managers see all declarations</field>
+        <field name="model_id" ref="model_cbam_declaration"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
     </record>
 
     <record id="rule_cbam_declaration_line_own" model="ir.rule">
@@ -20,11 +32,25 @@
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
     </record>
 
+    <record id="rule_cbam_declaration_line_manager_all" model="ir.rule">
+        <field name="name">Managers see all declaration lines</field>
+        <field name="model_id" ref="model_cbam_declaration_line"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
+    </record>
+
     <record id="rule_cbam_source_document_own" model="ir.rule">
         <field name="name">Declarants see only their own source documents</field>
         <field name="model_id" ref="model_cbam_source_document"/>
         <field name="domain_force">[('declaration_line_id.declaration_id.declarant_id', '=', user.partner_id.id)]</field>
         <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_cbam_source_document_manager_all" model="ir.rule">
+        <field name="name">Managers see all source documents</field>
+        <field name="model_id" ref="model_cbam_source_document"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('base.group_system'))]"/>
     </record>
 
 </odoo>
