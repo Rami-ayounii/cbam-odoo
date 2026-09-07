@@ -65,13 +65,16 @@ def main():
     create_resp.raise_for_status()
     job_id = create_resp.json()["job_id"]
 
-    deadline = time.monotonic() + 180
+    POLL_TIMEOUT_SECONDS = 180
+    deadline = time.monotonic() + POLL_TIMEOUT_SECONDS
     status_body = None
+    timed_out = True
     while time.monotonic() < deadline:
         status_resp = requests.get(f"http://localhost:8000/jobs/{job_id}/status", headers=headers, timeout=10)
         status_resp.raise_for_status()
         status_body = status_resp.json()
         if status_body["status"] not in ("pending", "running"):
+            timed_out = False
             break
         time.sleep(3)
 
@@ -90,6 +93,12 @@ def main():
         f"```json\n{json.dumps(job_request, indent=2)}\n```",
         "",
         "## Final job status",
+        (
+            f"**TIMED OUT** - still `{status_body['status'] if status_body else 'unknown'}` "
+            f"after {POLL_TIMEOUT_SECONDS}s, not a real outcome:"
+            if timed_out
+            else "Resolved for real:"
+        ),
         f"```json\n{json.dumps(status_body, indent=2)}\n```",
         "",
         "## Resulting declaration line",
@@ -108,6 +117,9 @@ def main():
     out_path.write_text("\n".join(report), encoding="utf-8")
     print(f"Wrote {out_path}")
     print(json.dumps(status_body, indent=2))
+    if timed_out:
+        print(f"TIMED OUT after {POLL_TIMEOUT_SECONDS}s - job never reached a terminal status", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
