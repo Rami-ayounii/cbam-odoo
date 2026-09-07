@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Mechanism done, data blocked** (explicitly out of scope for the 2026-09-06 live-infra pass) | `2d89d37` |
+| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | `2d89d37` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) | `ceaf01c` |
 
