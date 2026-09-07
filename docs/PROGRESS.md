@@ -500,9 +500,12 @@ tag — `llama3.1:8b-instruct` from the original plan doesn't exist as a
 published tag) at 50% valid-rate, ahead of `qwen2.5:7b-instruct` (40%),
 `qwen3:8b` (0%), and `qwen2.5:14b-instruct` (0%, both zero-scores from
 emitting multiple tool calls per turn rather than the one this benchmark
-scores). Full methodology and numbers: `docs/model-benchmark.md`. The real
-`machineA/docker-compose.yml` nginx gate was then verified for real: wrong
-`X-Api-Key` → 401, correct key → 200 with the real Ollama model list.
+scores). Full methodology and numbers: `docs/model-benchmark.md`. The nginx
+gate — `machineA/nginx.conf.template`, reused byte-for-byte by the
+`docker-compose.local-dev.yml` stack described above (no Tailscale sidecar
+on this host, so the real `machineA/docker-compose.yml` topology itself was
+not brought up) — was then verified for real: wrong `X-Api-Key` → 401,
+correct key → 200 with the real Ollama model list.
 
 **M3 — real Odoo install (commit `6a2e1b4`):** the `cbam` module installed
 cleanly via `button_immediate_install()` against a real Postgres 16 + Odoo
@@ -513,7 +516,7 @@ odoorpc's JSON-RPC transport can't serialize a raw `datetime.date` the way
 Odoo's XML-RPC/in-process ORM can, so `shared/data/dev_fixtures.py` now
 sends `VALID_FROM.isoformat()` over the wire.
 
-**M5 — orchestrator context gap fix (commit `58e404c`):** added
+**Orchestrator context gap fix (Task 5, commit `58e404c`):** added
 `OdooClient.get_declaration_line_context()` and wired it into the
 orchestrator's initial user prompt, so the agent loop starts each job
 knowing the declaration line's existing good/installation/production-route
@@ -539,12 +542,19 @@ trace and evidence: `docs/m6-live-verification.md`.
 **M9 — real evaluation (commit `ceaf01c`):** `run_evaluation()` executed for
 real against 20 synthetic records with `llama3.1:8b` as the LLM client.
 17/20 jobs completed, 3/20 escalated; every scored field came back at 0%
-accuracy. Root cause: `llama3.1:8b` frequently emits its tool call as plain
-assistant text instead of a structured tool call, which
-`agent_loop.py` correctly reads as "no tool calls, we're done" with nothing
-ever written — a real model-capability limitation surfaced only by running
-the real model, not a harness bug (`agent_loop.py`, `tools.py`, and
-`tool_args.py` needed no changes). Full report: `docs/evaluation.md`.
+accuracy. Root cause: per the iteration-count distribution recorded in
+`docs/evaluation.md` (1 record at 1 iteration, 12 at 2, 5 at 3, 2 at 4) and
+the 3 records that reached `escalated` (which requires a real
+`flag_for_human_review` tool call), `llama3.1:8b` does successfully make
+structured tool calls in the large majority of records — it just never
+completes the full call sequence needed to reach `write_declaration_line`,
+the one tool that actually records a result, consistent with the
+all-zero-argument `calculate_emissions` call-then-stop pattern captured live
+in M6 above. This is a real model capability/prompting limitation, not
+evidence the model can't call tools at all, and not a harness bug
+(`agent_loop.py`'s escalation-on-no-progress path is working as designed;
+`agent_loop.py`, `tools.py`, and `tool_args.py` needed no changes). Full
+report: `docs/evaluation.md`.
 
 **Verification:** `python -m pytest machineB/tests/ shared/ -q` → 122
 passed (unchanged from the count recorded in `b1a7d17`; no existing test's
