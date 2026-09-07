@@ -22,8 +22,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _UTILS_DIR = _REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"
 _ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
-_DATA_DIR = _REPO_ROOT / "shared" / "data"
-for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _DATA_DIR):
+_SHARED_DATA_DIR = _REPO_ROOT / "shared" / "data"
+for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _SHARED_DATA_DIR):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
