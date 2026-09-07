@@ -70,6 +70,10 @@ class ToolDispatcher:
             "write_declaration_line": self._write_declaration_line,
         }
 
+    @property
+    def declaration_line_written(self) -> bool:
+        return self._declaration_line_written
+
     def execute(self, name, args):
         handler = self._handlers.get(name)
         if handler is None:

@@ -104,6 +104,7 @@ def _load_tool_schemas():
 # neither one produced a converged, confident result.
 _EXTRACTION_STATUS_BY_LOOP_STATUS = {
     "completed": "extracted",
+    "no_write": "needs_review",
     "escalated": "needs_review",
     "exhausted": "needs_review",
 }
@@ -181,14 +182,37 @@ def _run_job(job_id: str, request: JobRequest):
             # direction.
             max_iterations=min(max(int(os.environ.get("MAX_AGENT_ITERATIONS", 9)), 8), 10),
         )
+        # agent_loop.py correctly reports "completed" whenever the model
+        # stops calling tools - that's its entire job, and it has no idea
+        # what write_declaration_line means (it must stay domain-agnostic).
+        # Whether a CBAM job actually produced a result is domain
+        # knowledge, so it's classified here, not in the loop: a job that
+        # stops without ever writing has nothing for a human to review, so
+        # it must not be reported as "completed" just because the loop
+        # ended cleanly. This is a completion-outcome classification, not
+        # tool-ordering logic - see the plan's Global Constraints note on
+        # why this is the same shape as agent_loop.py's own
+        # flag_for_human_review handling and tools.py's one-shot write
+        # guard, both of which classify an outcome without ever deciding
+        # what the model runs next.
+        reported_status = result.status
+        final_message = result.final_message
+        if reported_status == "completed" and not dispatcher.declaration_line_written:
+            reported_status = "no_write"
+            if not final_message:
+                final_message = (
+                    "The model stopped without ever calling "
+                    "write_declaration_line - no result was recorded."
+                )
+
         odoo_client.write_llm_trace(
             declaration_line_id=request.declaration_line_id,
             messages=result.messages,
-            extraction_status=_EXTRACTION_STATUS_BY_LOOP_STATUS[result.status],
+            extraction_status=_EXTRACTION_STATUS_BY_LOOP_STATUS[reported_status],
         )
         _JOBS[job_id].update(
-            status=result.status,
-            final_message=result.final_message,
+            status=reported_status,
+            final_message=final_message,
             iterations=result.iterations,
         )
     except Exception as exc:

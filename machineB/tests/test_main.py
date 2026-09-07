@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
 import main
@@ -149,7 +151,7 @@ def _set_run_job_env(monkeypatch):
     monkeypatch.setenv("OLLAMA_API_KEY", "unused-in-this-test")
 
 
-def test_run_job_writes_audit_trail_on_completion(monkeypatch):
+def test_run_job_reports_no_write_when_the_model_stops_without_writing(monkeypatch):
     _set_run_job_env(monkeypatch)
     captured = {}
 
@@ -168,16 +170,73 @@ def test_run_job_writes_audit_trail_on_completion(monkeypatch):
     monkeypatch.setattr(main, "OdooClient", FakeOdooClient)
     monkeypatch.setattr(main, "LLMClient", _FakeLLMClientNoToolCalls)
 
-    job_id = "job-audit-test"
+    job_id = "job-no-write-test"
+    main._JOBS[job_id] = {"status": "pending"}
+    request = main.JobRequest(declaration_id=1, declaration_line_id=2, reporting_year=2026)
+
+    main._run_job(job_id, request)
+
+    assert main._JOBS[job_id]["status"] == "no_write"
+    assert captured["extraction_status"] == "needs_review"
+    assert main._JOBS[job_id]["final_message"]  # never blank - always explains why nothing was written
+
+
+def test_run_job_reports_completed_when_the_model_actually_writes_a_result(monkeypatch):
+    _set_run_job_env(monkeypatch)
+    captured = {}
+
+    class FakeOdooClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def get_declaration_line_context(self, declaration_line_id):
+            return {}
+
+        def write_declaration_line(self, declaration_line_id, **data):
+            return declaration_line_id
+
+        def write_llm_trace(self, declaration_line_id, messages, extraction_status):
+            captured["declaration_line_id"] = declaration_line_id
+            captured["extraction_status"] = extraction_status
+
+    class _WriteThenStopLLMClient:
+        _calls = 0
+
+        def __init__(self, **kwargs):
+            pass
+
+        def chat(self, messages, tools):
+            _WriteThenStopLLMClient._calls += 1
+            if _WriteThenStopLLMClient._calls == 1:
+                return SimpleNamespace(
+                    content=None,
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="call-1",
+                            name="write_declaration_line",
+                            args={
+                                "declaration_id": 1,
+                                "good_id": 5,
+                                "installation_id": 7,
+                                "quantity_tonnes": 10.0,
+                                "data_source": "actual",
+                            },
+                        )
+                    ],
+                )
+            return SimpleNamespace(content="done", tool_calls=[])
+
+    monkeypatch.setattr(main, "OdooClient", FakeOdooClient)
+    monkeypatch.setattr(main, "LLMClient", _WriteThenStopLLMClient)
+
+    job_id = "job-real-completion-test"
     main._JOBS[job_id] = {"status": "pending"}
     request = main.JobRequest(declaration_id=1, declaration_line_id=2, reporting_year=2026)
 
     main._run_job(job_id, request)
 
     assert main._JOBS[job_id]["status"] == "completed"
-    assert captured["declaration_line_id"] == 2
     assert captured["extraction_status"] == "extracted"
-    assert captured["messages"]  # the actual tool-call trace, not empty
 
 
 def test_run_job_redacts_configured_secrets_from_error_message(monkeypatch):
