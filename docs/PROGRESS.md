@@ -1,7 +1,7 @@
 # CBAM Project — Progress Tracker
 
 *Academic project: Odoo 17 + Agentic LLM (Ollama) for EU Carbon Border Adjustment Mechanism declarations.*
-*Last updated: 2026-07-30*
+*Last updated: 2026-09-06*
 
 ---
 
@@ -12,13 +12,13 @@
 | M0 — Repo scaffold & networking | **Done** | `16ec5ec` |
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
 | M2 — Calculation engine | **Done** | `2d89d37` |
-| M3 — Odoo module (`cbam`) | **Done, unverified** | `2d89d37` |
-| M4 — LLM inference container (Machine A) | **Blocked** (no Docker/GPU in this sandbox) | — |
+| M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
+| M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
-| M6 — Orchestrator agent loop | **Done, unverified live** | `2d89d37` |
-| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | `2d89d37` |
+| M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
+| M7 — Versioned emission factor data load | **Mechanism done, data blocked** (explicitly out of scope for the 2026-09-06 live-infra pass) | `2d89d37` |
 | M8 — Security hardening | **Done** | `2d89d37` |
-| M9 — Evaluation | **Harness done, real run blocked** | `2d89d37` |
+| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) | `ceaf01c` |
 
 ---
 
@@ -465,6 +465,90 @@ versions); `main.py`'s in-memory job dict has no explicit lock (safe today
 under CPython's GIL since each background task only touches its own uuid
 key); nginx's plain-HTTP listener on 8443 (intentional — the Tailscale
 WireGuard tunnel is the encryption layer, documented in M8c).
+
+---
+
+## Live infra verification pass (2026-09-06)
+
+M0-M9 were built and unit-tested in a prior dev sandbox with no Docker, no
+GPU, and no Ollama, so M4, the live half of M3, the live half of M6, and the
+real run of M9 had never been exercised against real infrastructure. This
+pass ran on a different machine with Docker Desktop, a native `ollama`
+install, and an NVIDIA RTX 5070 (12GB VRAM), and got real, non-mocked
+evidence for all four. M7 (real emission-factor numbers) stayed explicitly
+out of scope — a primary-source research task, not an infra task.
+
+**Machine topology deviation:** the decided architecture is two Tailscale-
+meshed machines (Machine A running Ollama+nginx, Machine B running
+Odoo+orchestrator). This machine has no Tailscale install and the intended
+Machine B was not reachable this session, so standing up the real
+cross-machine mesh was out of scope here. Instead, `docker-compose.local-dev.yml`
+(new, committed, clearly header-labeled as dev-only) runs everything on this
+one host — Ollama + nginx (reusing `machineA/nginx.conf.template`
+byte-for-byte) + Postgres + Odoo + orchestrator — reaching each other over
+`localhost` with no Tailscale sidecar. `machineA/docker-compose.yml` /
+`machineB/docker-compose.yml` are unmodified and remain the real deployment
+topology for when Machine B is available. Full rationale in
+`docs/superpowers/specs/2026-09-06-m4-live-infra-design.md`'s "Non-goals" and
+"Approach" sections.
+
+**M4 — real model benchmark (commit `9d4851a`):** 4 candidate models
+benchmarked for real against a live local `ollama serve`, 10 tool-calling
+attempts each, scored against the exact production Pydantic validation in
+`machineB/orchestrator/tool_args.py`. Winner: `llama3.1:8b` (the real Ollama
+tag — `llama3.1:8b-instruct` from the original plan doesn't exist as a
+published tag) at 50% valid-rate, ahead of `qwen2.5:7b-instruct` (40%),
+`qwen3:8b` (0%), and `qwen2.5:14b-instruct` (0%, both zero-scores from
+emitting multiple tool calls per turn rather than the one this benchmark
+scores). Full methodology and numbers: `docs/model-benchmark.md`. The real
+`machineA/docker-compose.yml` nginx gate was then verified for real: wrong
+`X-Api-Key` → 401, correct key → 200 with the real Ollama model list.
+
+**M3 — real Odoo install (commit `6a2e1b4`):** the `cbam` module installed
+cleanly via `button_immediate_install()` against a real Postgres 16 + Odoo
+17 container on the first try — no addon changes needed, resolving M3's
+long-standing "not runtime-verified" caveat. One real bug was found and
+fixed, in the fixture-seeding script rather than the addon itself:
+odoorpc's JSON-RPC transport can't serialize a raw `datetime.date` the way
+Odoo's XML-RPC/in-process ORM can, so `shared/data/dev_fixtures.py` now
+sends `VALID_FROM.isoformat()` over the wire.
+
+**M5 — orchestrator context gap fix (commit `58e404c`):** added
+`OdooClient.get_declaration_line_context()` and wired it into the
+orchestrator's initial user prompt, so the agent loop starts each job
+knowing the declaration line's existing good/installation/production-route
+context instead of having to (re)discover it via tool calls.
+
+**M6 — real end-to-end run (commit `b1a7d17`):** the first ever live
+LLM+Odoo run for this project. Final job status: `completed`
+(`llama3.1:8b` called `calculate_emissions` with all-zero inputs instead of
+extracting fields first, then stopped without calling
+`write_declaration_line` — a documented model tool-calling limitation
+consistent with M9's real evaluation, not a new harness bug). This live run
+surfaced and fixed 3 real bugs invisible to the mocked test suite: (1)
+`OLLAMA_BASE_URL` needed an explicit `/v1` suffix for the `openai` SDK to
+resolve against Ollama's OpenAI-compatible endpoint; (2) `llm_client.py`
+needed an explicit `X-Api-Key` header since the `openai` SDK only ever sends
+`Authorization: Bearer`, which the nginx gate ignores; (3)
+`cbam_security_rules.xml`'s declarant-scoping rule wrongly restricted
+managers too, because Odoo's `base.group_system` implies
+`base.group_user` membership with no competing permissive rule for the
+former — fixed with explicit manager-unrestricted `ir.rule` records. Full
+trace and evidence: `docs/m6-live-verification.md`.
+
+**M9 — real evaluation (commit `ceaf01c`):** `run_evaluation()` executed for
+real against 20 synthetic records with `llama3.1:8b` as the LLM client.
+17/20 jobs completed, 3/20 escalated; every scored field came back at 0%
+accuracy. Root cause: `llama3.1:8b` frequently emits its tool call as plain
+assistant text instead of a structured tool call, which
+`agent_loop.py` correctly reads as "no tool calls, we're done" with nothing
+ever written — a real model-capability limitation surfaced only by running
+the real model, not a harness bug (`agent_loop.py`, `tools.py`, and
+`tool_args.py` needed no changes). Full report: `docs/evaluation.md`.
+
+**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 122
+passed (unchanged from the count recorded in `b1a7d17`; no existing test's
+expectations changed as part of this pass).
 
 ---
 
