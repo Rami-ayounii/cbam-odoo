@@ -33,9 +33,40 @@ class FakeOpenAIClient:
         self.chat = FakeChat(completion)
 
 
+class _CapturingOpenAIConstructor:
+    """Stands in for openai.OpenAI itself (not a client instance) so the
+    constructor kwargs LLMClient passes can be inspected - every other
+    fake in this file replaces the client *after* construction via
+    `client=`, which never exercises this code path at all."""
+
+    last_kwargs = None
+
+    def __init__(self, **kwargs):
+        _CapturingOpenAIConstructor.last_kwargs = kwargs
+
+
 def _make_completion(content=None, tool_calls=None):
     message = SimpleNamespace(content=content, tool_calls=tool_calls)
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+def test_constructs_openai_client_with_explicit_x_api_key_header(monkeypatch):
+    monkeypatch.setattr("llm_client.OpenAI", _CapturingOpenAIConstructor)
+
+    LLMClient(model="llama3.1:8b", base_url="http://ollama:8443/v1", api_key="secret-key")
+
+    kwargs = _CapturingOpenAIConstructor.last_kwargs
+    assert kwargs["api_key"] == "secret-key"
+    assert kwargs["default_headers"] == {"X-Api-Key": "secret-key"}
+
+
+def test_omits_default_headers_when_no_api_key_given(monkeypatch):
+    monkeypatch.setattr("llm_client.OpenAI", _CapturingOpenAIConstructor)
+
+    LLMClient(model="llama3.1:8b", base_url="http://ollama:8443/v1", api_key=None)
+
+    kwargs = _CapturingOpenAIConstructor.last_kwargs
+    assert kwargs["default_headers"] is None
 
 
 def test_chat_returns_content_when_no_tool_calls():
