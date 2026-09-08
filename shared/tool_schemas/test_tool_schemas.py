@@ -54,6 +54,11 @@ def test_schema_required_fields_are_declared_as_properties(name):
     assert EXPECTED_SCHEMAS[name].issubset(required)
 
 
+def test_write_declaration_line_description_states_it_is_the_completion_signal():
+    schema = _load("write_declaration_line")
+    assert "not considered done" in schema["description"]
+
+
 def test_no_duplicate_tool_names_across_all_schemas():
     names = [json.loads(p.read_text(encoding="utf-8"))["name"] for p in SCHEMA_DIR.glob("*.json")]
     assert len(names) == len(set(names))

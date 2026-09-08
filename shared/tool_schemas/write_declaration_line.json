@@ -1,6 +1,6 @@
 {
     "name": "write_declaration_line",
-    "description": "Writes the final, validated declaration line data to Odoo via a single RPC call. Must be called at most once per line, only after calculate_emissions has produced a result and check_consistency has raised no blocking issues. This is the only tool with write access to Odoo - the orchestrator has read-only access everywhere else in the loop.",
+    "description": "Writes the final, validated declaration line data to Odoo via a single RPC call. Must be called at most once per line, only after calculate_emissions has produced a result and check_consistency has raised no blocking issues. This is the only tool with write access to Odoo - the orchestrator has read-only access everywhere else in the loop. Call this as your last action once you have a complete, consistent result: the job is not considered done, and nothing is recorded anywhere, until this tool has actually been called.",
     "parameters": {
         "type": "object",
         "properties": {

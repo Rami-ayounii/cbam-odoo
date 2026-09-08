@@ -8,6 +8,11 @@ TEST_API_KEY = "test-orchestrator-api-key"
 AUTH_HEADERS = {"X-Api-Key": TEST_API_KEY}
 
 
+def test_system_prompt_states_the_job_is_not_done_without_a_write():
+    assert "write_declaration_line" in main.SYSTEM_PROMPT
+    assert "not finished" in main.SYSTEM_PROMPT
+
+
 def test_load_tool_schemas_returns_all_seven_wrapped_for_openai():
     schemas = main._load_tool_schemas()
 
