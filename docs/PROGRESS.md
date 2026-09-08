@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Partially done, most real data seeded** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), and the 2026 `reference_certificate_price` (average of the two published quarters) are real and cited; steel EAF_DRI's `direct_ef` and `cbam_factor_year` stay blocked for documented, evidence-based reasons (not a fetch failure) | `2a4deec`, `c35dbbe` |
+| M7 — Versioned emission factor data load | **Done, real data seeded (EAF_DRI `direct_ef` genuinely unavailable)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; only steel EAF_DRI's `direct_ef` stays blocked, structurally absent from the source (not a fetch failure) | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
 
@@ -297,7 +297,7 @@ Architectural compliance re-verified: the only tool-name branch in `agent_loop.p
 
 ---
 
-### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data partially seeded 2026-09-08, commit `2a4deec`; fixture country/route redesign 2026-09-08, Task 9)
+### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data partially seeded 2026-09-08, commit `2a4deec`; fixture country/route redesign 2026-09-08, Task 9; `cbam_factor_year` resolved 2026-09-08, Task 11, commit `4923a9e`)
 
 **What changed since the last pass:** the prior session's fetch tooling
 failures (empty EUR-Lex fetches, a garbled JRC134682 text layer, no local
@@ -361,8 +361,24 @@ to Task 6's copy: 41,252,987 bytes, 135,102 extracted lines) and:
   and values averaged so a future reader can see the approximation, not
   just trust a bare number.
 
-**What's still blocked, and why (evidence, not fetch failure) - down to 2
-fields after Task 9:**
+**Task 11 (2026-09-08, same day): `cbam_factor_year` resolved, closing the
+last easy gap.** Task 9's addendum had already surfaced the piece needed
+here: commit `db50c1f` ("Fix inverted cbam_factor_year direction in
+certificate calculation"), already on this branch before Task 9 started,
+had changed `calc_engine.py`'s formula to `benchmark_deduction = benchmark
+* (1 - cbam_factor_year) * quantity_tonnes` - which makes the codebase's
+pre-existing `cbam_factor_year=0.025`-for-2026 convention directionally
+correct again (the complement of Directive 2003/87/EC Art. 10a(1a)'s
+literal 97.5%-for-2026 "CBAM factor" figure). Task 11 re-confirmed the
+citation (re-quoted the Directive text, independently re-checked via a
+fresh `WebSearch`, and re-read `calc_engine.py`'s current formula) and
+filled in `cbam_factor_year=0.025` for 2026, with the record's
+`source_document` now citing both fields directly instead of carrying
+"unresolved" language. Full derivation: `docs/m7-source-verification.md`'s
+"Task 11 addendum" section.
+
+**What's still blocked, and why (evidence, not fetch failure) - down to 1
+field after Task 11:**
 - `direct_ef` for steel EAF_DRI/TR: IR 2025/2621's Annex I legend defines
   a "(D) Carbon Steel based on DRI/EAF" route indicator, but across the
   entire ~2,400-page Annex I it is attached to zero actual data rows for
@@ -375,50 +391,19 @@ fields after Task 9:**
   out-of-scope "weighted average", not named countries). This is not a
   per-country gap - no country anywhere in either source has DRI/EAF-route
   data, so there is no substitute country to swap in for this route.
-- `cbam_factor_year` for 2026: Directive 2003/87/EC Art. 10a(1a) gives a
-  clean, quotable figure ("shall be equal to 97,5 % in 2026... 14 % in
-  2033. From 2034, no CBAM factor shall apply") - but that "CBAM factor"
-  is the fraction of free allocation *retained*, while this codebase's
-  existing convention (`shared/data/dev_fixtures.py`, this doc's M2
-  section, the M4 plan) already uses 0.025 for 2026 - the complement,
-  rising the opposite direction. Plugged into
-  `calc_engine.calculate_certificates_required`'s actual formula
-  (`benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes`),
-  0.025 makes the deduction tiny in 2026, so importers would owe
-  certificates for nearly their full emissions from year one - the
-  opposite of the gradual phase-in the Directive describes. Deciding
-  between 0.975 (the Directive's literal figure) and 0.025 (the
-  pre-existing convention) is a formula-direction question outside a
-  data-only task's scope (`calc_engine.py` must not be touched to resolve
-  it), so it's left for the human partner rather than guessed. Task 9 did
-  not attempt this - it was explicitly out of scope for that task too.
-  **Note for whoever picks this up next:** commit `db50c1f` ("Fix inverted
-  cbam_factor_year direction in certificate calculation", already on this
-  branch before Task 9 started) changed `calc_engine.py`'s formula itself
-  to `benchmark_deduction = benchmark * (1 - cbam_factor_year) * quantity_tonnes`
-  - which validates the codebase's pre-existing 0.025-for-2026 convention
-  as directionally correct (a LOW `cbam_factor_year` in early years now
-  correctly produces a LARGE deduction); the bug was in the formula, not
-  the data. That strongly suggests `cbam_factor_year` for 2026 should be
-  **0.025** (the complement of the Directive's literal 97.5%, matching
-  "phase-out factor" as this codebase names it) - but confirming that and
-  actually filling in the seed value is still a distinct task, not done
-  by Task 9 (it was never in that task's checklist), and is flagged here
-  rather than assumed.
 
 **Existing files, unchanged in shape:**
-- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). Every still-`None` field carries a comment citing the exact primary-source finding that blocks it (see above); every filled-in field carries a comment citing the exact source row it came from.
-- `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 2 items (`steel/EAF_DRI/TR: direct_ef`, `year_parameter 2026: cbam_factor_year`) instead of the 7 it returned after Task 6.
-- `seed_odoo(env, allow_incomplete=False)` - unchanged; still refuses to write to Odoo while either of those 2 remain `None`.
+- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). The one still-`None` field carries a comment citing the exact primary-source finding that blocks it (see above); every filled-in field carries a comment citing the exact source row it came from.
+- `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 1 item (`steel/EAF_DRI/TR: direct_ef`) instead of the 2 it returned after Task 9.
+- `seed_odoo(env, allow_incomplete=False)` - unchanged; still refuses to write to Odoo while that field remains `None`.
 - `main()` - unchanged standalone CLI using `odoorpc`.
-- `test_seed_emission_factors.py` (5 tests) - `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` now asserts the exact 2-item list above instead of the 7-item Task 6 list.
+- `test_seed_emission_factors.py` (6 tests) - `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` now asserts the exact 1-item list above instead of the 2-item Task 9 list; new test `test_year_parameter_2026_cbam_factor_year_is_no_longer_a_placeholder` asserts `cbam_factor_year` is a real fraction in `(0, 1)`.
 
-**To actually finish this milestone:** get a human decision on
-`cbam_factor_year`'s formula direction (0.975 vs 0.025 - see above); the
-steel EAF_DRI route has no real data to source from either primary source
-for any country, so finishing it would mean either accepting a different
-steel route as the DRI/EAF slot's stand-in (a modelling decision, not a
-data lookup) or leaving it permanently blocked. Full fetch-by-fetch
+**To actually finish this milestone:** the steel EAF_DRI route has no real
+data to source from either primary source for any country, so finishing it
+would mean either accepting a different steel route as the DRI/EAF slot's
+stand-in (a modelling decision, not a data lookup) or leaving it
+permanently blocked - this is the only remaining gap. Full fetch-by-fetch
 record with exact quotes: `docs/m7-source-verification.md`.
 
 ---

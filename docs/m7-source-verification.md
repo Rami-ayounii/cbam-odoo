@@ -15,22 +15,21 @@ real, permanent home for that content. Do not re-point references at the
 `.superpowers/` path; it is deliberately excluded from version control
 (`.superpowers/sdd/.gitignore`) and will never exist on a fresh clone.
 
-**Overall outcome (updated by Task 9, see the addendum below the original
-findings):** 8 of 10 tracked fields fully verified and seeded from clean
-primary text (2 EU ETS benchmarks, the sector-wide 10% 2026 markup rate,
-4 of 5 `EmissionFactorSeed.direct_ef` country/route pairings, and the 2026
-`reference_certificate_price`); 2 remain explained-and-blocked with
-documented, evidence-based reasons (not fetch failures — the sources were
-reachable and readable, but the specific data point requested does not
-exist, or filling it in requires a judgment call outside a data-only
-task's scope): steel EAF_DRI's `direct_ef` (no country anywhere in either
-source has DRI/EAF-route steel data) and `cbam_factor_year` (a real number
-exists but resolving it is a `calc_engine.py` formula-direction question,
-deliberately out of scope for both Task 6 and Task 9). Task 6's original
-findings below (sections "Fields resolved" and "Fields still blocked")
-are the unedited historical record; the "Task 9 addendum" section further
-down documents what changed since, including one correction (Tunisia's
-aluminium data was wrongly reported absent by Task 6).
+**Overall outcome (updated by Task 9, then Task 11 — see the addenda below
+the original findings):** 9 of 10 tracked fields fully verified and seeded
+from clean primary text (2 EU ETS benchmarks, the sector-wide 10% 2026
+markup rate, 4 of 5 `EmissionFactorSeed.direct_ef` country/route pairings,
+the 2026 `reference_certificate_price`, and `cbam_factor_year`); 1 remains
+explained-and-blocked with a documented, evidence-based reason (not a
+fetch failure — the sources were reachable and readable, but the specific
+data point requested does not exist): steel EAF_DRI's `direct_ef` (no
+country anywhere in either source has DRI/EAF-route steel data —
+structurally absent, not a per-country gap). Task 6's original findings
+below (sections "Fields resolved" and "Fields still blocked") are the
+unedited historical record; the "Task 9 addendum" section further down
+documents what changed since, including one correction (Tunisia's
+aluminium data was wrongly reported absent by Task 6); the "Task 11
+addendum" documents `cbam_factor_year`'s resolution.
 
 ## Method note: how the primary sources were actually reached
 
@@ -709,5 +708,61 @@ was re-confirmed exactly as stated, so steel EAF_DRI remains unfilled.
 Recommendation 3 is also now acted on: `reference_certificate_price` is
 filled in as the average of the two published 2026 quarters (see the
 addendum's Field 9 section) rather than left for a modelling decision.
-Recommendation 2 (`cbam_factor_year`) is unchanged and still open - it was
-out of Task 9's scope.
+
+**Status update (Task 11):** Recommendation 2 (`cbam_factor_year`) is now
+also acted on - see the "Task 11 addendum" section below. All three
+original recommendations are resolved; only steel EAF_DRI's `direct_ef`
+remains genuinely blocked (structurally absent from the source, not a
+decision to make).
+
+## Task 11 addendum: `cbam_factor_year` resolved
+
+Task 9's addendum (Field 8 section, above) already surfaced the piece that
+closes this gap: commit `db50c1f` ("Fix inverted cbam_factor_year direction
+in certificate calculation"), already on this branch before Task 9 ran,
+changed `calc_engine.py`'s formula from `benchmark * cbam_factor_year *
+quantity_tonnes` to `benchmark * (1 - cbam_factor_year) * quantity_tonnes`.
+That fix makes this codebase's pre-existing `cbam_factor_year=0.025`-for-
+2026 convention (`shared/data/dev_fixtures.py`) directionally correct again
+- it's the complement of the Directive's own "CBAM factor" (the fraction of
+free allocation *retained*), and a low early-year value now correctly
+produces a *large* certificate deduction, matching the gradual free-
+allocation phase-in Directive 2003/87/EC and IR 2025/2620 both describe.
+
+Re-confirmed for this task (not a fresh investigation - re-checking
+already-found material per the task brief):
+
+- **Primary-source citation** (unchanged from Task 9's find, re-quoted from
+  Directive 2003/87/EC Art. 10a(1a), consolidated text
+  `02003L0087--EN--01.03.2024`): *"...shall be equal to 97,5 % in 2026, 95 %
+  in 2027, 90 % in 2028, 77,5 % in 2029, 51,5 % in 2030, 39 % in 2031, 26,5 %
+  in 2032 and 14 % in 2033. From 2034, no CBAM factor shall apply."* -
+  97.5% for 2026, confirmed exact.
+- **Independent re-confirmation:** a fresh `WebSearch` for this task
+  (`Article 10a(1a) Directive 2003/87/EC CBAM factor "97,5 %" 2026`)
+  returned the same figure and full percentage sequence from independent
+  secondary sources (e.g. cbamguide.com's free-allocation phase-out page),
+  consistent with the primary text quoted above and with Task 9's original
+  fetch.
+- **Current formula, re-checked directly in `calc_engine.py`** (read-only -
+  this task does not touch that file): line 136 reads
+  `benchmark_deduction = benchmark * (1 - cbam_factor_year) * quantity_tonnes`,
+  confirming commit `db50c1f`'s fix is still in place and `0.025` is the
+  directionally-correct value for the `cbam_factor_year` field's actual
+  usage.
+
+**Resolution:** `YEAR_PARAMETER_SEEDS`'s 2026 record now sets
+`cbam_factor_year=0.025` (the complement of the Directive's literal 97.5%
+figure, matching `calc_engine.py`'s `(1 - cbam_factor_year)` formula and
+every other pre-existing convention in the codebase - `dev_fixtures.py`,
+`docs/PROGRESS.md`'s M2 section, the M4 plan). The record's
+`source_document` now cites both fields' sources directly rather than
+carrying "unresolved"/"BLOCKED" language.
+
+This closes the last field in scope for this plan: **9 of 10** tracked M7
+fields are now real, cited values. The 10th (steel EAF_DRI's `direct_ef`)
+stays genuinely blocked - not a decision to make, but a structural absence
+in the only primary sources CBAM defines default values from (re-confirmed
+independently by both Task 6 and Task 9: the "(D)" DRI/EAF route indicator
+is defined in IR 2025/2621's legend but attached to zero data rows for any
+country in the entire regulation).
