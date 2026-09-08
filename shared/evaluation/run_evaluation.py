@@ -19,13 +19,7 @@ from tools import ToolDispatcher
 
 from scoring import aggregate_field_scores, score_record
 
-SYSTEM_PROMPT = (
-    "You are a CBAM declaration assistant processing one supplier document. "
-    "Decide which tool to call and in what order; never compute a "
-    "compliance number yourself - always call calculate_emissions. Call "
-    "write_declaration_line at most once, when confident. If you cannot "
-    "converge, call flag_for_human_review."
-)
+from main import SYSTEM_PROMPT
 
 
 def load_synthetic_records(data_dir, limit: Optional[int] = 20) -> List[dict]:

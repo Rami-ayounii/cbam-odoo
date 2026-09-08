@@ -592,7 +592,7 @@ This is a real behavior change from the prior `no_write`/silent-stop
 finding: the model now reaches an actual terminal state via a real tool
 call instead of just stopping mid-loop.
 
-**Re-running M9 (`docs/evaluation-prompt-v2-2026-09-08.md`, 20 records,
+**First M9 re-run (`docs/evaluation-prompt-v2-2026-09-08.md`, 20 records,
 `llama3.1:8b`, through the real nginx gate at `localhost:8443`):**
 
 | | completed | escalated | field accuracy (all 6 fields) |
@@ -602,24 +602,67 @@ call instead of just stopping mid-loop.
 
 Reported exactly as measured, with no rounding either direction: completions
 went down and escalations went up, and per-field accuracy is unchanged at
-0% across all 6 scored fields in both runs. This is not a clean improvement
-on the M9 numbers.
+0% across all 6 scored fields in both runs.
 
-**Important caveat on the M9 comparison:** `shared/evaluation/run_evaluation.py`
-defines its own separate, shorter `SYSTEM_PROMPT` constant (not an import of
-`machineB/orchestrator/main.py`'s), and that file is outside this task's
-scope to modify (not in Task 5's file list). This means the M9 re-run above
-only exercised the `write_declaration_line.json` description change — the
-actual `SYSTEM_PROMPT` strengthening was never in the request path for this
-comparison at all. The M6 re-run above is the only real evidence of the
-`SYSTEM_PROMPT` change's effect, and it shows a genuine behavioral
-difference (silent stop → real escalation). Neither run sets a temperature
-or seed, so some of the M9 delta may also be ordinary sampling variance
-rather than a signal about the schema-description change specifically. A
-clean read on the `SYSTEM_PROMPT`'s effect on the M9 aggregate numbers would
-require also updating `run_evaluation.py`'s own prompt (or importing
-`main.SYSTEM_PROMPT` directly) — flagged here as follow-up work, out of this
-task's scope.
+**Bug found in this first re-run:** `shared/evaluation/run_evaluation.py`
+defined its own separate, shorter `SYSTEM_PROMPT` constant, never imported
+from `machineB/orchestrator/main.py`. This meant the first M9 re-run above
+never actually exercised this task's `SYSTEM_PROMPT` strengthening — only
+the `write_declaration_line.json` schema-description change was in effect
+for that run. The M6 re-run above was, until the fix below, the only real
+evidence of the `SYSTEM_PROMPT` change's effect.
+
+**Fix:** `run_evaluation.py`'s local `SYSTEM_PROMPT` definition was deleted
+and replaced with `from main import SYSTEM_PROMPT` (the orchestrator
+directory is already on `sys.path` for both pytest, via
+`shared/evaluation/conftest.py`, and the standalone
+`run_real_evaluation.py` script, via its own bootstrap). `main.py`'s
+module-level code has no env-var requirements at import time, so the import
+is safe in both contexts. No test in `shared/evaluation/test_run_evaluation.py`
+or `test_run_real_evaluation.py` asserted on the old local prompt text.
+Verified with a standalone import check that `run_evaluation.SYSTEM_PROMPT`
+now is the real, strengthened `main.py` prompt (contains both
+`write_declaration_line` and `not finished`). This duplication bug cannot
+recur now that the prompt is unified at the source. Full test suite
+re-verified at 127 passed after this change, no regressions.
+
+**Second M9 re-run (`docs/evaluation-prompt-v2b-2026-09-08.md`, 20 records,
+`llama3.1:8b`, same infra, now with the real unified `SYSTEM_PROMPT` in
+effect) — this is the valid comparison against the original baseline:**
+
+| | completed | escalated | exhausted | field accuracy (all 6 fields) |
+|---|---|---|---|---|
+| Original baseline (`docs/evaluation.md`) | 17/20 | 3/20 | 0/20 | 0% |
+| v2b, unified prompt (`docs/evaluation-prompt-v2b-2026-09-08.md`) | 15/20 | 1/20 | 4/20 | 0% |
+
+Reported exactly as measured. Per-field accuracy is still 0% across all 6
+scored fields — the `SYSTEM_PROMPT`/schema strengthening did not move the
+field-accuracy needle at all, with the real unified prompt now genuinely in
+effect. The status breakdown also picked up a status not seen in the
+original baseline or the first (buggy) re-run: `exhausted` (4/20) — the
+model used all available iterations without reaching a terminal
+`write_declaration_line` or `flag_for_human_review` call, consistent with
+the more thorough (and therefore longer) tool-use sequences the
+strengthened prompt now asks for (iteration counts in this run ranged up to
+9, versus a max of 4 in the original baseline). This is a genuine, if
+mixed, result: the model engages more (matching the M6 finding above of
+real multi-step tool use replacing silent stops), but that extra engagement
+does not yet reliably end in a recorded declaration line, and never once
+produces an accurate field value in either run. Consistent with this task's
+own framing: the tool-completion *gap* (silent stop with nothing recorded)
+is fixed per the M6 evidence, but the field-*accuracy* gap is a distinct,
+unaddressed problem that prompting alone did not close — pointing back to
+M4's original finding that `llama3.1:8b` itself may be the binding
+constraint, not the prompt text.
+
+An interim run at the same output path was affected mid-flight by an
+unrelated Docker Desktop daemon health incident (the daemon's control plane
+returned intermittent 500s while troubleshooting infra for this task;
+`LLMClient`'s built-in retry logic appears to have ridden through it, since
+that run completed cleanly once the daemon was restarted and the stack was
+brought back up) — that run's file was discarded in favor of the clean
+second re-run above, run entirely after Docker's health was independently
+confirmed, to remove any doubt about its numbers.
 
 **Infra note:** the `docker-compose.local-dev.yml` stack from the September
 6 pass ran in a worktree (`m4-live-infra`) since deleted, so `.env.local-dev`
@@ -631,7 +674,8 @@ smoke test had anything to work with. None of this touched repo state.
 
 **Verification:** `python -m pytest machineB/tests/ shared/ -q` → 127 passed
 (125 + the 2 new regression tests from this task's Step 1; no existing
-test's expectations changed).
+test's expectations changed; unchanged after the `run_evaluation.py` prompt-
+unification fix).
 
 ---
 
