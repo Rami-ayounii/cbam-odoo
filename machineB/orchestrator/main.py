@@ -210,11 +210,21 @@ def _run_job(job_id: str, request: JobRequest):
         final_message = result.final_message
         if reported_status == "completed" and not dispatcher.declaration_line_written:
             reported_status = "no_write"
-            if not final_message:
-                final_message = (
-                    "The model stopped without ever calling "
-                    "write_declaration_line - no result was recorded."
-                )
+            # Always append this fact, not just when final_message is blank -
+            # the model can stop WITH confident-sounding content (e.g. "the
+            # embedded emissions total is 0.0 tonnes CO2 equivalent") that
+            # would otherwise survive verbatim as final_message alongside
+            # status="no_write", letting a consumer that only reads
+            # final_message mistake it for a success claim. Keep the model's
+            # own message too (useful context) - just make sure the "nothing
+            # was recorded" fact is always present in the string, not only in
+            # the status field.
+            no_write_notice = (
+                "No result was recorded - write_declaration_line was never called."
+            )
+            final_message = (
+                f"{final_message}\n\n{no_write_notice}" if final_message else no_write_notice
+            )
 
         odoo_client.write_llm_trace(
             declaration_line_id=request.declaration_line_id,

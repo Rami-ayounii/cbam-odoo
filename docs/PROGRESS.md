@@ -1,7 +1,7 @@
 # CBAM Project — Progress Tracker
 
 *Academic project: Odoo 17 + Agentic LLM (Ollama) for EU Carbon Border Adjustment Mechanism declarations.*
-*Last updated: 2026-09-06*
+*Last updated: 2026-09-08*
 
 ---
 
@@ -18,7 +18,7 @@
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Partially done, real data seeded for benchmarks/markup** — 2 EU ETS benchmarks + the 2026 markup rate are real and cited; 5 country/route emission factors and 2 year-parameter fields stay blocked for documented, evidence-based reasons (not a fetch failure) | `2a4deec` |
 | M8 — Security hardening | **Done** | `2d89d37` |
-| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) | `ceaf01c` |
+| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
 
 ---
 
@@ -397,8 +397,7 @@ thoroughly both primary sources were searched - replace those three
 placeholder country/route pairings with countries and routes that
 actually have CBAM default values (e.g. any of the ~170 countries IR
 2025/2621 does list for the DRI/EAF and secondary-aluminium routes).
-Full fetch-by-fetch record with exact quotes:
-`docs/superpowers/sdd/2026-09-08-project-completion-plan/task-6-report.md`.
+Full fetch-by-fetch record with exact quotes: `docs/m7-source-verification.md`.
 
 ---
 
@@ -656,9 +655,10 @@ after real Pydantic validation errors came back), then a real
 instead of the actual `steel/BF-BOF` context — a separate field-grounding
 bug, not the completion gap this task targets), and finally a genuine
 `flag_for_human_review` call. Final job status: `escalated`, exit code 0.
-This is a real behavior change from the prior `no_write`/silent-stop
-finding: the model now reaches an actual terminal state via a real tool
-call instead of just stopping mid-loop.
+This is a real behavior change from the prior silent-stop finding (then
+mislabelled `completed`, now classified `no_write`): the model now reaches
+an actual terminal state via a real tool call instead of just stopping
+mid-loop.
 
 **First M9 re-run (`docs/evaluation-prompt-v2-2026-09-08.md`, 20 records,
 `llama3.1:8b`, through the real nginx gate at `localhost:8443`):**

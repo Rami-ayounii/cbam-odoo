@@ -183,7 +183,17 @@ def test_run_job_reports_no_write_when_the_model_stops_without_writing(monkeypat
 
     assert main._JOBS[job_id]["status"] == "no_write"
     assert captured["extraction_status"] == "needs_review"
-    assert main._JOBS[job_id]["final_message"]  # never blank - always explains why nothing was written
+    assert captured["declaration_line_id"] == 2
+    assert captured["messages"]  # the actual tool-call trace, not empty
+    final_message = main._JOBS[job_id]["final_message"]
+    assert final_message  # never blank - always explains why nothing was written
+    # The model stopped WITH non-empty content ("nothing to extract",
+    # per _FakeLLMResponse) instead of an empty string - a consumer reading
+    # only final_message must not be able to mistake that for a success
+    # claim. Both the model's own message and an explicit "nothing was
+    # recorded" statement must be present, not one replacing the other.
+    assert "nothing to extract" in final_message
+    assert "no result was recorded" in final_message.lower()
 
 
 def test_run_job_reports_completed_when_the_model_actually_writes_a_result(monkeypatch):

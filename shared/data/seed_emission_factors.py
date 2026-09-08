@@ -30,8 +30,8 @@ distinct figures:
     Territories" catch-all, which for CN 7601 is tagged "(K) primary
     Aluminium", not "(L) secondary" - so it cannot honestly stand in for
     a "secondary_recycled" figure either).
-See docs/superpowers/sdd/2026-09-08-project-completion-plan/task-6-report.md
-for the full fetch-by-fetch record, exact quotes and citations.
+See docs/m7-source-verification.md for the full fetch-by-fetch record,
+exact quotes and citations.
 
 What *did* come back clean and get filled in below: the EU ETS benchmark
 values for hot metal (steel) and aluminium from Commission Implementing
@@ -41,9 +41,9 @@ now filled in on every EmissionFactorSeed even though direct_ef on most of
 them is still None). The two YearParameterSeed fields remain None: real,
 quotable numbers exist for both (Directive 2003/87/EC Art. 10a(1a)'s CBAM
 factor, and two of 2026's four quarterly CBAM certificate prices), but
-using them raises questions outside this task's data-only scope (see the
-report) rather than a fetch failure, so they are left as documented
-placeholders pending a human decision.
+using them raises questions outside this task's data-only scope (see
+docs/m7-source-verification.md) rather than a fetch failure, so they are
+left as documented placeholders pending a human decision.
 
 Each still-`None` value below carries a comment explaining exactly why.
 seed_odoo() refuses to write to a real Odoo instance while any placeholder
@@ -105,14 +105,15 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
         # extracted JRC134682 text and IR 2025/2621's Annex I - "France"
         # never appears except in an unrelated citation). CBAM default
         # values only exist for non-EU countries of origin; France, as an
-        # EU member, never needs one. See task-6-report.md for detail.
+        # EU member, never needs one. See docs/m7-source-verification.md
+        # for detail.
         indirect_ef=0.0,  # Annex II: indirect not priced for steel, but tracked
         markup_pct=0.10,  # VERIFIED: Commission Implementing Regulation (EU)
         # 2025/2621, Annex I, "Iron and steel 10% mark-up 20% mark-up 30%
         # mark-up" header (2026/2027/2028-onwards columns) - confirmed
         # identical across every country block and in Annex IV; sector-wide,
         # not country- or route-specific.
-        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see task-6-report.md",
+        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
@@ -124,7 +125,7 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
         indirect_ef=0.0,
         markup_pct=0.10,  # VERIFIED: same IR 2025/2621 Annex I "Iron and
         # steel 10% mark-up" line as above.
-        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see task-6-report.md",
+        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
@@ -145,7 +146,7 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
         indirect_ef=0.0,
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Iron and steel
         # 10% mark-up" line - confirmed for Turkiye's own country block too.
-        source_document="BLOCKED: DRI/EAF route indicator (D) is defined in IR 2025/2621's legend but used in zero data rows anywhere in the regulation; JRC134682 gives Turkiye only a blended (not route-specific) value - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see task-6-report.md",
+        source_document="BLOCKED: DRI/EAF route indicator (D) is defined in IR 2025/2621's legend but used in zero data rows anywhere in the regulation; JRC134682 gives Turkiye only a blended (not route-specific) value - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
@@ -164,7 +165,7 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
         indirect_ef=0.0,
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Aluminium 10%
         # mark-up" line - sector-wide, applies regardless of country/route.
-        source_document="BLOCKED: Norway is out of CBAM's scope entirely (EU ETS member per JRC134682 section 4.1), not listed in IR 2025/2621 Annex I - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see task-6-report.md",
+        source_document="BLOCKED: Norway is out of CBAM's scope entirely (EU ETS member per JRC134682 section 4.1), not listed in IR 2025/2621 Annex I - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
@@ -186,7 +187,7 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Aluminium 10%
         # mark-up" line - same sector-wide rate, confirmed in the "Other
         # Countries and Territories" table too.
-        source_document="BLOCKED: Tunisia absent from both sources' aluminium tables; IR 2025/2621's 'Other Countries and Territories' fallback for CN 7601 is tagged primary (K), not secondary (L) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see task-6-report.md",
+        source_document="BLOCKED: Tunisia absent from both sources' aluminium tables; IR 2025/2621's 'Other Countries and Territories' fallback for CN 7601 is tagged primary (K), not secondary (L) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
 ]
@@ -215,7 +216,7 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
         # 0.975 (the Directive's literal figure) or 0.025 (matching the
         # pre-existing convention/tests) is a formula-direction question
         # outside this task's data-only scope ("do not touch the
-        # mechanism") - escalated in task-6-report.md rather than guessed.
+        # mechanism") - escalated in docs/m7-source-verification.md rather than guessed.
         reference_certificate_price=None,  # BLOCKED (partial - real numbers
         # exist but don't reduce to one 2026 figure): the European
         # Commission's official page (taxation-customs.ec.europa.eu/
@@ -230,8 +231,8 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
         # year, per docs/PROGRESS.md), which cannot represent a value that
         # is genuinely quarterly (and still incomplete) for 2026 without
         # picking one quarter or an average - a modelling decision, not a
-        # data lookup, so left for the human partner (see task-6-report.md).
-        source_document="BLOCKED: real primary figures found (Dir. 2003/87/EC Art. 10a(1a) CBAM factor; EC quarterly CBAM certificate prices) but each raises a scope question outside this task's data-only mandate - see task-6-report.md",
+        # data lookup, so left for the human partner (see docs/m7-source-verification.md).
+        source_document="BLOCKED: real primary figures found (Dir. 2003/87/EC Art. 10a(1a) CBAM factor; EC quarterly CBAM certificate prices) but each raises a scope question outside this task's data-only mandate - see docs/m7-source-verification.md",
     ),
 ]
 
@@ -306,7 +307,7 @@ def seed_odoo(env, allow_incomplete: bool = False) -> None:
     if incomplete and not allow_incomplete:
         raise ValueError(
             "Refusing to seed placeholder/unverified values into Odoo. "
-            "Fill in these first (see inline TODO comments in "
+            "Fill in these first (see inline BLOCKED comments in "
             "seed_emission_factors.py for exactly which source to check):\n- "
             + "\n- ".join(incomplete)
         )

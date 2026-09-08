@@ -51,7 +51,7 @@ def test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields():
     # CN 7208, aluminium CN 7601) and markup_pct on every EmissionFactorSeed
     # got real, cited values (Commission Implementing Regulation (EU)
     # 2026/1412's benchmarks; IR 2025/2621's flat 10% 2026 markup rate) -
-    # see task-6-report.md. direct_ef on all five EmissionFactorSeed
+    # see docs/m7-source-verification.md. direct_ef on all five EmissionFactorSeed
     # records, and both YearParameterSeed fields, are still genuinely
     # blocked (not merely unattempted - each has a documented, cited reason
     # in seed_emission_factors.py). This test names exactly those and will
