@@ -1358,6 +1358,54 @@ gap is worth the added complexity.
 
 ---
 
+## Remembered-value carryover: full closure for this test case (2026-09-08, same day)
+
+Direct continuation, at the human partner's explicit request to build the
+speculative fix the section above flagged rather than stop. Implemented
+exactly as described there: `ToolDispatcher` now watches every tool call's
+raw arguments (before validation, regardless of which tool or whether that
+call ultimately validates) for any of `write_declaration_line`'s own
+optional field names (`direct_emissions_actual`, `indirect_emissions_actual`,
+`carbon_price_paid_origin`, `precursor_emissions`), remembers the last
+value seen under each, and fills in any of them still missing when
+`write_declaration_line` is finally called - **filling gaps only, never
+overriding** a value the model deliberately restates in the write call
+itself. Whatever ends up in the final merged dict still passes through the
+same Pydantic plausibility bounds as before, so a bad remembered value is
+rejected exactly as if the model had typed it directly - this mechanism
+can only help a value survive to the write, never bypass the existing
+safety net. Two new regression tests in `test_tools.py` cover both the
+fill-in and the model's-own-value-wins-over-remembered-one cases.
+
+**Live result, the same `data_source="actual"` line as the section above,
+two independent real runs after this fix:** both runs wrote all three
+values correctly - `direct_emissions_actual=2.172`,
+`indirect_emissions_actual=0.079`, **and now `carbon_price_paid_origin=
+12.04`** (previously 0.00 in every prior run) - an exact, reproducible
+match to ground truth on every actual-sourced field this test exercises,
+not a partial result. `embedded_emissions_total=879.834` (=
+405.08 x 2.172, still verified against the real formula) and
+`certificates_status=computed` with a real, correct
+`certificates_required` both remained consistent with the correct inputs.
+
+**Assessment:** for this specific test case (`SYNTH-0018-D46D18`, a
+mill-certificate-style document with all its actual-emissions fields
+present and unambiguous), the actual-sourced extraction path is now fully
+closed - 0/3 correct at the start of tonight's "Closing the actual-sourced
+extraction gap" section, 3/3 correct and reproducible now, across the
+combination of the temperature fix, the prompt fix, and this carryover
+mechanism. This is not a claim that extraction is now 100% reliable in
+general - a harder document (missing fields, ambiguous units, a "hard"
+M1-generator difficulty tier) or a different record could still expose
+gaps this specific fix doesn't reach, since it only rescues values the
+model *did* correctly determine somewhere in the conversation; it cannot
+manufacture a value the model never derived at all. A broader-sample
+re-run (the full 20-record M9 harness, still blocked tonight by this
+machine's available RAM) would be the honest next check before generalizing
+this result beyond the two live samples taken here.
+
+---
+
 ## Architecture Reference
 
 ```

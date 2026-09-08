@@ -371,6 +371,70 @@ def test_write_declaration_line_uses_the_prior_lookup_default_values_emission_fa
     assert odoo_client.written["data_source"] == "default"
 
 
+def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wrong_tool_call():
+    # Regression test for a real live-traced bug (docs/PROGRESS.md's
+    # "Closing the actual-sourced extraction gap" section): the model
+    # correctly extracted direct_emissions_actual/indirect_emissions_actual
+    # from a real document, then called calculate_emissions using
+    # write_declaration_line's field names instead of calculate_emissions'
+    # own (direct_ef/indirect_ef) - a call that fails validation - and
+    # never supplied those values to write_declaration_line at all. The
+    # dispatcher must remember them from that failed call anyway.
+    odoo_client = FakeOdooClient(write_result_id=11)
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "data_source": "actual",
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 405.08,
+        },
+    )
+    with pytest.raises(ValueError):
+        dispatcher.execute(
+            "calculate_emissions",
+            {
+                "direct_emissions_actual": 2.172,
+                "indirect_emissions_actual": 0.079,
+                "carbon_price_paid_origin": 12.04,
+            },
+        )
+
+    result = dispatcher.execute("write_declaration_line", {})
+
+    assert result["declaration_line_id"] == 11
+    assert odoo_client.written["direct_emissions_actual"] == pytest.approx(2.172)
+    assert odoo_client.written["indirect_emissions_actual"] == pytest.approx(0.079)
+    assert odoo_client.written["carbon_price_paid_origin"] == pytest.approx(12.04)
+
+
+def test_write_declaration_line_prefers_its_own_explicit_value_over_a_remembered_one():
+    # A value the model deliberately restates in the write call itself must
+    # win over an earlier, possibly-stale remembered one - remembering only
+    # fills genuine gaps, it never overrides.
+    odoo_client = FakeOdooClient(write_result_id=12)
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "data_source": "actual",
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+        },
+    )
+    with pytest.raises(ValueError):
+        dispatcher.execute(
+            "calculate_emissions", {"direct_emissions_actual": 1.0}
+        )
+
+    result = dispatcher.execute(
+        "write_declaration_line", {"direct_emissions_actual": 1.9}
+    )
+
+    assert result["declaration_line_id"] == 12
+    assert odoo_client.written["direct_emissions_actual"] == pytest.approx(1.9)
+
+
 def test_write_declaration_line_delegates_to_odoo_client_and_never_runs_mid_loop_writes_elsewhere():
     odoo_client = FakeOdooClient(write_result_id=7)
     dispatcher = _make_dispatcher(odoo_client)

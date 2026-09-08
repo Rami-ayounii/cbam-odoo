@@ -101,6 +101,27 @@ class ToolDispatcher:
         # lookup_default_value call (also observed live) must not silently
         # clobber it.
         self._last_lookup_default_value = None
+        # Remembers the last raw value the model has stated under any of
+        # write_declaration_line's own field names, in ANY tool call
+        # (regardless of which tool, or whether that call validated) -
+        # last-value-wins. Unlike _last_lookup_default_value above, this is
+        # NOT a deterministic fact the dispatcher looked up itself; it's the
+        # model's own prior (possibly mis-targeted) statement, remembered
+        # only because a real live trace (docs/PROGRESS.md's "Closing the
+        # actual-sourced extraction gap" section) showed the model
+        # correctly extracting direct_emissions_actual/
+        # indirect_emissions_actual/carbon_price_paid_origin from a real
+        # document, then calling calculate_emissions with those exact
+        # write_declaration_line field names (not calculate_emissions' own
+        # direct_ef/indirect_ef), getting a validation error, and never
+        # supplying them to write_declaration_line either. execute() below
+        # only FILLS IN a missing write_declaration_line field from here
+        # (never overrides a value the model deliberately restates in the
+        # write call itself) - and whatever ends up in the final merged
+        # dict still passes through the same Pydantic plausibility bounds
+        # as before, so a bad remembered value is rejected exactly as if
+        # the model had typed it directly into write_declaration_line.
+        self._remembered_write_fields = {}
         self._handlers = {
             "extract_field": self._extract_field,
             "lookup_default_value": self._lookup_default_value,
@@ -134,12 +155,32 @@ class ToolDispatcher:
         },
     }
 
+    # write_declaration_line's own optional fields, watched for across every
+    # tool call so a value the model states under the right name - even in
+    # the wrong tool, even in a call that otherwise fails validation - isn't
+    # lost by the time write_declaration_line is actually called. See
+    # _remembered_write_fields above.
+    _REMEMBERED_WRITE_FIELD_NAMES = (
+        "direct_emissions_actual",
+        "indirect_emissions_actual",
+        "carbon_price_paid_origin",
+        "precursor_emissions",
+    )
+
     def execute(self, name, args):
         handler = self._handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown tool: {name}")
 
         args = dict(args)
+        for field_name in self._REMEMBERED_WRITE_FIELD_NAMES:
+            if field_name in args:
+                self._remembered_write_fields[field_name] = args[field_name]
+        if name == "write_declaration_line":
+            for field_name in self._REMEMBERED_WRITE_FIELD_NAMES:
+                if field_name not in args and field_name in self._remembered_write_fields:
+                    args[field_name] = self._remembered_write_fields[field_name]
+
         for arg_name, context_key in self._KNOWN_CONTEXT_INJECTIONS.get(name, {}).items():
             if context_key in self._known_context:
                 args[arg_name] = self._known_context[context_key]
