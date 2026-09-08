@@ -30,6 +30,7 @@ DEV_SOURCE_LABEL = "DEV FIXTURE - fake round numbers, NOT real CBAM data, local 
 
 @dataclass(frozen=True)
 class _Fixture:
+    id: int
     sector: str
     route: str
     country: str
@@ -39,12 +40,12 @@ class _Fixture:
 
 
 DEV_EMISSION_FACTOR_FIXTURES = [
-    _Fixture("steel", "BF-BOF", "CN", 2.0, 0.0, 0.10),
-    _Fixture("steel", "BF-BOF", "EG", 2.1, 0.0, 0.10),
-    _Fixture("steel", "BF-BOF", "TR", 1.9, 0.0, 0.10),
-    _Fixture("steel", "EAF_scrap", "UA", 0.3, 0.0, 0.10),
-    _Fixture("aluminium", "primary_electrolysis", "IS", 12.0, 0.0, 0.10),
-    _Fixture("aluminium", "primary_electrolysis", "MA", 11.5, 0.0, 0.10),
+    _Fixture(1, "steel", "BF-BOF", "CN", 2.0, 0.0, 0.10),
+    _Fixture(2, "steel", "BF-BOF", "EG", 2.1, 0.0, 0.10),
+    _Fixture(3, "steel", "BF-BOF", "TR", 1.9, 0.0, 0.10),
+    _Fixture(4, "steel", "EAF_scrap", "UA", 0.3, 0.0, 0.10),
+    _Fixture(5, "aluminium", "primary_electrolysis", "IS", 12.0, 0.0, 0.10),
+    _Fixture(6, "aluminium", "primary_electrolysis", "MA", 11.5, 0.0, 0.10),
 ]
 
 DEV_GOOD_FIXTURES = [
@@ -96,6 +97,15 @@ def build_emission_factor_session():
             source_document=DEV_SOURCE_LABEL,
             valid_from=VALID_FROM,
             valid_to=None,
+            # Without a real id, lookup_default_value's result always had
+            # emission_factor_id=None, making a data_source="default"
+            # write_declaration_line call structurally impossible in this
+            # harness regardless of model quality - tool_args.py's
+            # WriteDeclarationLineArgs requires a non-None emission_factor_id
+            # whenever data_source is "default" (docs/PROGRESS.md's
+            # MVP-focused follow-up section). Real Odoo assigns this on
+            # create(); this fixture just needs a stable stand-in.
+            id=f.id,
         )
         for f in DEV_EMISSION_FACTOR_FIXTURES
     ]

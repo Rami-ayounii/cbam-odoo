@@ -37,6 +37,20 @@ def test_build_emission_factor_session_resolves_a_known_combo():
     assert factor.valid_from == date(2026, 1, 1)
 
 
+def test_build_emission_factor_session_resolves_a_real_emission_factor_id():
+    # Regression test: without a real id, lookup_default_value's result
+    # always had emission_factor_id=None, making a data_source="default"
+    # write_declaration_line call structurally impossible in this harness
+    # (tool_args.py requires a non-None emission_factor_id in that case) -
+    # a live trace confirmed this (docs/PROGRESS.md's MVP-focused
+    # follow-up section).
+    session = build_emission_factor_session()
+
+    factor = session.get_emission_factors("steel", "BF-BOF", "EG")[0]
+
+    assert factor.id is not None
+
+
 def test_build_emission_factor_session_empty_for_unknown_combo():
     session = build_emission_factor_session()
 

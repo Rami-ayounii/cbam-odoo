@@ -1,28 +1,9 @@
 {
     "name": "lookup_default_value",
-    "description": "Deterministic lookup of the versioned default emission factor for a sector/route/country, valid on today's declaration date. Never invents a number - calls calc_engine.lookup_emission_factor() against the cbam.emission.factor table. Raises if no factor is on file yet for this combination.",
+    "description": "Deterministic lookup of the versioned default emission factor for this declaration line's sector/route/country, valid on today's declaration date. Takes no arguments - the sector, production route, and exporting country are already fixed on this line (see the 'Known context' in your first message) and are supplied automatically; you do not need to (and should not try to) pass them yourself. Never invents a number - calls calc_engine.lookup_emission_factor() against the cbam.emission.factor table. Raises if no factor is on file yet for this combination.",
     "parameters": {
         "type": "object",
-        "properties": {
-            "sector": {
-                "type": "string",
-                "enum": ["steel", "aluminium"]
-            },
-            "route": {
-                "type": "string",
-                "enum": [
-                    "BF-BOF",
-                    "EAF_scrap",
-                    "EAF_DRI",
-                    "primary_electrolysis",
-                    "secondary_recycled"
-                ]
-            },
-            "country": {
-                "type": "string",
-                "description": "ISO 3166-1 alpha-2 exporting country code, e.g. FR, NO."
-            }
-        },
-        "required": ["sector", "route", "country"]
+        "properties": {},
+        "required": []
     }
 }

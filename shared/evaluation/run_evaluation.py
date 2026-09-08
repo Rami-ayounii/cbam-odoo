@@ -89,12 +89,6 @@ def run_evaluation_on_record(
         document_text=record["document_text"],
         emission_factor_session=emission_factor_session,
     )
-    dispatcher = ToolDispatcher(
-        odoo_client,
-        declaration_date=declaration_date,
-        declaration_id=declaration_id,
-        declaration_line_id=declaration_line_id,
-    )
 
     # Mirrors main.py's real production prompt shape exactly (declaration_id/
     # declaration_line_id + a "known context" JSON block + document_id under
@@ -108,26 +102,29 @@ def run_evaluation_on_record(
     # see docs/PROGRESS.md's audit follow-up section). good_id/
     # installation_id are arbitrary placeholders (not real Odoo ids, not
     # ground truth) - FixtureOdooClient doesn't validate them and
-    # scoring.py doesn't score them - included only because
-    # write_declaration_line requires them and, in real production, they'd
-    # already be known context the model never has to extract.
+    # scoring.py doesn't score them.
     #
-    # good_sector/installation_country/production_route are likewise
-    # genuinely pre-known in real production (fixed properties of the good/
-    # installation records the line already points to, per
-    # get_declaration_line_context - never extracted from a document there
-    # either) and are NOT in scoring.py's SCORED_FIELDS, so surfacing them
-    # here doesn't leak anything this evaluation measures - it only stops
-    # the model from trying (and failing) to extract_field a field that was
-    # never a valid extract_field enum option in the first place. A live
-    # trace without these (docs/PROGRESS.md's audit follow-up section)
-    # showed exactly that failure: extract_field(field_name="sector", ...)
-    # rejected by the schema, then the model gave up instead of retrying.
-    # quantity_tonnes/data_source are deliberately NOT included here even
-    # though production's get_declaration_line_context does include them -
-    # they stay genuine extraction targets so this harness still tests
-    # extract_field's real job, at the cost of not perfectly matching
-    # production's task boundary for those two fields specifically.
+    # good_sector/installation_country/production_route/quantity_tonnes/
+    # data_source are all genuinely pre-known in real production (fixed
+    # properties of the good/installation records, or set on the line at
+    # creation time, per get_declaration_line_context - never extracted
+    # from a document there either) and this dict is passed as
+    # ToolDispatcher's known_context, which now injects them directly into
+    # lookup_default_value/write_declaration_line calls rather than relying
+    # on the model to correctly re-supply them (see tools.py's
+    # _KNOWN_CONTEXT_INJECTIONS and shared/tool_schemas/*.json, which no
+    # longer even expose these as model-fillable arguments - a live trace,
+    # docs/PROGRESS.md's field-accuracy investigation, showed llama3.1:8b
+    # reliably dropping at least one of several required fields on almost
+    # every multi-argument tool call). Consequence worth being explicit
+    # about: quantity_tonnes/data_source are now always correctly injected
+    # from ground truth here, same as real production would inject them
+    # from the already-set line record - so their SCORED_FIELDS accuracy is
+    # now a trivial pass-through, not a real extraction test, matching the
+    # fact that production doesn't ask the model to extract them either.
+    # The genuinely-tested fields are direct_emissions_actual/
+    # indirect_emissions_actual/carbon_price_paid_origin/
+    # precursor_emissions/emission_factor_id.
     line_context = {
         "declaration_id": declaration_id,
         "good_id": 1,
@@ -135,10 +132,19 @@ def run_evaluation_on_record(
         "good_sector": record["ground_truth"].get("sector"),
         "installation_country": record["ground_truth"].get("installation_country"),
         "production_route": record["ground_truth"].get("production_route"),
+        "quantity_tonnes": record["ground_truth"].get("quantity_tonnes"),
+        "data_source": record["ground_truth"].get("data_source"),
         "source_document_ids": [
             {"document_id": "1", "filename": f"{record['record_id']}.txt"}
         ],
     }
+    dispatcher = ToolDispatcher(
+        odoo_client,
+        declaration_date=declaration_date,
+        declaration_id=declaration_id,
+        declaration_line_id=declaration_line_id,
+        known_context=line_context,
+    )
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {

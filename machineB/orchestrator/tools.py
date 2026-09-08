@@ -33,7 +33,14 @@ UNTRUSTED_DOCUMENT_NOTE = (
 
 
 class ToolDispatcher:
-    def __init__(self, odoo_client, declaration_date, declaration_id, declaration_line_id):
+    def __init__(
+        self,
+        odoo_client,
+        declaration_date,
+        declaration_id,
+        declaration_line_id,
+        known_context=None,
+    ):
         # declaration_id/declaration_line_id scope this dispatcher to the one
         # job it was created for (see main.py's JobRequest). The orchestrator
         # authenticates to Odoo as a single privileged user, so it is never
@@ -47,6 +54,21 @@ class ToolDispatcher:
         self.declaration_date = declaration_date
         self.declaration_id = declaration_id
         self.declaration_line_id = declaration_line_id
+        # known_context is the same dict main.py/run_evaluation.py already
+        # show the model as "known context already set on this declaration
+        # line" (good_sector/installation_country/production_route/good_id/
+        # installation_id/quantity_tonnes/data_source) - deterministic facts
+        # about this line the orchestrator already has, not things the model
+        # extracts or decides. execute() below injects these directly into
+        # lookup_default_value/write_declaration_line calls, always
+        # overriding whatever (if anything) the model supplied, for the same
+        # reason declaration_line_id below is never LLM-supplied: a small
+        # local model reliably shown (docs/PROGRESS.md's field-accuracy
+        # investigation) to drop one of several required fields under
+        # multi-argument JSON construction has no legitimate reason to
+        # independently re-derive facts the orchestrator already knows
+        # exactly - asking it to only adds failure surface.
+        self._known_context = known_context or {}
         # Set the first (and only allowed) time write_declaration_line
         # succeeds. projecthandoff.md section 7's design constraints are
         # explicit: "Single write at the end... Do not let the agent write
@@ -74,10 +96,41 @@ class ToolDispatcher:
     def declaration_line_written(self) -> bool:
         return self._declaration_line_written
 
+    # Maps each auto-injected tool arg name to the key it's read from in
+    # known_context. Only applied when known_context actually has the key,
+    # so callers that don't pass known_context (existing tests, e.g.) are
+    # unaffected - the model must still supply these args directly in that
+    # case, exactly as before this change.
+    _KNOWN_CONTEXT_INJECTIONS = {
+        "lookup_default_value": {
+            "sector": "good_sector",
+            "route": "production_route",
+            "country": "installation_country",
+        },
+        "write_declaration_line": {
+            "good_id": "good_id",
+            "installation_id": "installation_id",
+            "quantity_tonnes": "quantity_tonnes",
+            "data_source": "data_source",
+        },
+    }
+
     def execute(self, name, args):
         handler = self._handlers.get(name)
         if handler is None:
             raise ValueError(f"Unknown tool: {name}")
+
+        args = dict(args)
+        for arg_name, context_key in self._KNOWN_CONTEXT_INJECTIONS.get(name, {}).items():
+            if context_key in self._known_context:
+                args[arg_name] = self._known_context[context_key]
+        if name == "write_declaration_line":
+            # declaration_id is already never LLM-supplied in practice (see
+            # _write_declaration_line's ownership check below) - inject it
+            # unconditionally too, same reasoning as the known_context
+            # fields above, so the model doesn't need to get this right
+            # either.
+            args["declaration_id"] = self.declaration_id
 
         args_model = TOOL_ARG_MODELS[name]
         try:
@@ -192,12 +245,12 @@ class ToolDispatcher:
                 "job - refusing a second write (single write at the end, "
                 "per the design constraints)"
             )
-        if data["declaration_id"] != self.declaration_id:
-            raise ValueError(
-                f"write_declaration_line declaration_id={data['declaration_id']} "
-                f"does not match this job's declaration_id={self.declaration_id} "
-                "- refusing cross-declaration write"
-            )
+        # No declaration_id mismatch check needed here: execute() above
+        # always injects this job's own declaration_id before validation,
+        # unconditionally overriding whatever the model supplied - a
+        # cross-declaration write via a hallucinated/malicious declaration_id
+        # is structurally impossible by the time data reaches this method,
+        # not just checked-and-rejected.
         record_id = self.odoo_client.write_declaration_line(
             declaration_line_id=self.declaration_line_id, **data
         )

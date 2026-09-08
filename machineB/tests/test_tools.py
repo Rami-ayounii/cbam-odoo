@@ -60,12 +60,14 @@ def _make_dispatcher(
     declaration_date=date(2026, 6, 1),
     declaration_id=DEFAULT_DECLARATION_ID,
     declaration_line_id=DEFAULT_DECLARATION_LINE_ID,
+    known_context=None,
 ):
     return ToolDispatcher(
         odoo_client,
         declaration_date=declaration_date,
         declaration_id=declaration_id,
         declaration_line_id=declaration_line_id,
+        known_context=known_context,
     )
 
 
@@ -135,6 +137,50 @@ def test_lookup_default_value_returns_emission_factor_fields():
     # where this key was simply absent, making a data_source="default" write
     # impossible (WriteDeclarationLineArgs requires it in that case).
     assert result["emission_factor_id"] == 7
+
+
+def test_lookup_default_value_uses_known_context_ignoring_model_supplied_values():
+    # Real traces (docs/PROGRESS.md's field-accuracy investigation) showed
+    # llama3.1:8b reliably dropping at least one of sector/route/country
+    # across repeated attempts, even with all three visible in its own
+    # prompt context. known_context lets the dispatcher supply these
+    # deterministic facts itself - the model's own (here deliberately
+    # wrong) values must be ignored, not just supplemented.
+    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=1.9, id=7)])
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "good_sector": "steel",
+            "production_route": "BF-BOF",
+            "installation_country": "FR",
+        },
+    )
+
+    result = dispatcher.execute(
+        "lookup_default_value",
+        {"sector": "aluminium", "route": "EAF_scrap", "country": "XX"},
+    )
+
+    assert result["direct_ef"] == pytest.approx(1.9)
+    assert result["emission_factor_id"] == 7
+
+
+def test_lookup_default_value_works_with_no_arguments_when_known_context_set():
+    # The point of known_context: the model shouldn't need to supply these
+    # arguments at all once the orchestrator already knows them.
+    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=1.9, id=7)])
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "good_sector": "steel",
+            "production_route": "BF-BOF",
+            "installation_country": "FR",
+        },
+    )
+
+    result = dispatcher.execute("lookup_default_value", {})
+
+    assert result["direct_ef"] == pytest.approx(1.9)
 
 
 def test_lookup_default_value_propagates_not_found_as_exception():
@@ -413,24 +459,59 @@ def test_write_declaration_line_rejects_emission_factor_id_for_actual_source():
         )
 
 
-def test_write_declaration_line_rejects_declaration_id_mismatch():
+def test_write_declaration_line_ignores_a_mismatched_declaration_id():
+    # execute() always injects this job's own declaration_id, unconditionally
+    # overriding whatever the model supplied - stronger than the old
+    # behavior (raise on mismatch): a cross-declaration write via a
+    # hallucinated/malicious declaration_id is now structurally impossible,
+    # not just detected-and-rejected.
     odoo_client = FakeOdooClient(write_result_id=7)
     dispatcher = _make_dispatcher(odoo_client, declaration_id=1)
 
-    with pytest.raises(ValueError):
-        dispatcher.execute(
-            "write_declaration_line",
-            {
-                "declaration_id": 999,  # not this job's declaration_id (1)
-                "good_id": 2,
-                "installation_id": 3,
-                "quantity_tonnes": 100.0,
-                "data_source": "actual",
-                "direct_emissions_actual": 1.9,
-            },
-        )
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 999,  # not this job's declaration_id (1)
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "actual",
+            "direct_emissions_actual": 1.9,
+        },
+    )
 
-    assert odoo_client.written is None
+    assert result["declaration_line_id"] == 7
+    assert odoo_client.written["declaration_id"] == 1
+
+
+def test_write_declaration_line_fills_in_known_context_fields():
+    # good_id/installation_id/quantity_tonnes/data_source are all already
+    # fixed on the declaration line before the agent ever runs (real
+    # production: odoo_client.get_declaration_line_context) - the model
+    # only needs to supply what it genuinely determined (here,
+    # direct_emissions_actual). Real traces showed llama3.1:8b repeatedly
+    # omitting several of these required fields at once.
+    odoo_client = FakeOdooClient(write_result_id=9)
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 41.88,
+            "data_source": "actual",
+        },
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line", {"direct_emissions_actual": 1.9}
+    )
+
+    assert result["declaration_line_id"] == 9
+    assert odoo_client.written["good_id"] == 2
+    assert odoo_client.written["installation_id"] == 3
+    assert odoo_client.written["quantity_tonnes"] == pytest.approx(41.88)
+    assert odoo_client.written["data_source"] == "actual"
+    assert odoo_client.written["direct_emissions_actual"] == pytest.approx(1.9)
 
 
 def test_unknown_tool_name_raises_value_error():

@@ -1,37 +1,22 @@
 {
     "name": "write_declaration_line",
-    "description": "Writes the final, validated declaration line data to Odoo via a single RPC call. Must be called at most once per line, only after calculate_emissions has produced a result and check_consistency has raised no blocking issues. This is the only tool with write access to Odoo - the orchestrator has read-only access everywhere else in the loop. Call this as your last action once you have a complete, consistent result: the job is not considered done, and nothing is recorded anywhere, until this tool has actually been called.",
+    "description": "Writes the final, validated declaration line data to Odoo via a single RPC call. Must be called at most once per line, only after calculate_emissions has produced a result and check_consistency has raised no blocking issues. This is the only tool with write access to Odoo - the orchestrator has read-only access everywhere else in the loop. Call this as your last action once you have a complete, consistent result: the job is not considered done, and nothing is recorded anywhere, until this tool has actually been called. declaration_id/good_id/installation_id/quantity_tonnes/data_source are already fixed on this line (see the 'Known context' in your first message) and are supplied automatically - you do not need to (and should not try to) pass them yourself. Only supply the fields below that you actually determined: if data_source is 'actual' (see known context), supply direct_emissions_actual/indirect_emissions_actual from extract_field; if data_source is 'default', supply emission_factor_id from lookup_default_value's result instead.",
     "parameters": {
         "type": "object",
         "properties": {
-            "declaration_id": {
-                "type": "integer",
-                "description": "The cbam.declaration record this line belongs to."
-            },
-            "good_id": {
-                "type": "integer"
-            },
-            "installation_id": {
-                "type": "integer"
-            },
-            "quantity_tonnes": {
-                "type": "number"
-            },
-            "data_source": {
-                "type": "string",
-                "enum": ["actual", "default"]
-            },
             "direct_emissions_actual": {
                 "type": "number",
-                "default": 0
+                "default": 0,
+                "description": "Only when this line's data_source is 'actual', from extract_field."
             },
             "indirect_emissions_actual": {
                 "type": "number",
-                "default": 0
+                "default": 0,
+                "description": "Only when this line's data_source is 'actual', from extract_field."
             },
             "emission_factor_id": {
                 "type": "integer",
-                "description": "Required when data_source = default, from lookup_default_value's result. Must be omitted/null when data_source = actual."
+                "description": "Required when this line's data_source is 'default', from lookup_default_value's result. Must be omitted/null when data_source is 'actual'."
             },
             "carbon_price_paid_origin": {
                 "type": "number",
@@ -42,12 +27,6 @@
                 "default": 0
             }
         },
-        "required": [
-            "declaration_id",
-            "good_id",
-            "installation_id",
-            "quantity_tonnes",
-            "data_source"
-        ]
+        "required": []
     }
 }
