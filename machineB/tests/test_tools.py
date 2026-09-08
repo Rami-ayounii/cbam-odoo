@@ -391,6 +391,28 @@ def test_write_declaration_line_allows_missing_emission_factor_id_for_actual_sou
     assert result["declaration_line_id"] == 8
 
 
+def test_write_declaration_line_rejects_emission_factor_id_for_actual_source():
+    # write_declaration_line.json documents emission_factor_id as "Must be
+    # omitted/null when data_source = actual" - this asserts tool_args.py
+    # actually enforces that direction too, not just the reverse
+    # (default-requires-it) checked above.
+    dispatcher = _make_dispatcher(FakeOdooClient())
+
+    with pytest.raises(ValueError):
+        dispatcher.execute(
+            "write_declaration_line",
+            {
+                "declaration_id": 1,
+                "good_id": 2,
+                "installation_id": 3,
+                "quantity_tonnes": 100.0,
+                "data_source": "actual",
+                "direct_emissions_actual": 1.9,
+                "emission_factor_id": 9,
+            },
+        )
+
+
 def test_write_declaration_line_rejects_declaration_id_mismatch():
     odoo_client = FakeOdooClient(write_result_id=7)
     dispatcher = _make_dispatcher(odoo_client, declaration_id=1)

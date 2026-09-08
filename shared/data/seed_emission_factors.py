@@ -108,6 +108,7 @@ class YearParameterSeed:
 class GoodBenchmarkSeed:
     cn_code: str
     sector: str
+    route: str
     benchmark: Optional[float]
     source_document: str
 
@@ -269,20 +270,28 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
 ]
 
 GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
-    # KNOWN LIMITATION (documented, not a bug in the arithmetic): GoodBenchmarkSeed
-    # keys only on (cn_code, sector), with no route dimension, so the single benchmark
-    # below is applied uniformly to every EmissionFactorSeed record for this CN code
-    # regardless of production route. For CN 7208 (steel) this benchmark represents
-    # hot-metal BF-BOF production per its source citation below; applying it to a
-    # scrap-EAF route record (e.g. the steel EAF_scrap/AZ record) understates the true
-    # benchmark deduction for that route and will compute an artificially low (possibly
-    # zero) certificate requirement. See docs/PROGRESS.md's M7 section and
-    # docs/m7-source-verification.md for the concrete numeric consequence and why a real
-    # fix needs a route dimension added to GoodBenchmarkSeed (a schema change, out of
-    # scope for this plan).
+    # ROUTE DIMENSION (schema fix, this session): GoodBenchmarkSeed used to key only on
+    # (cn_code, sector), so a single benchmark was applied uniformly to every route -
+    # concretely, the "Hot metal"/BF-BOF benchmark below was being applied to the
+    # steel EAF_scrap/AZ emission-factor record too, and the primary-aluminium benchmark
+    # to the aluminium secondary_recycled/TN record, silently zeroing out certificates
+    # for both (see docs/PROGRESS.md's M7 section for the numeric consequence that was
+    # found). Now keyed on (cn_code, sector, route): cbam.good.benchmark is its own
+    # Odoo model (good_id, production_route_id, benchmark), and
+    # cbam_declaration_line.py's _compute_good_benchmark_id looks it up by the line's
+    # actual installation route, not just its good. The two entries below (BF-BOF,
+    # primary_electrolysis) are unchanged, real, cited values. EAF_scrap and
+    # secondary_recycled get their own entries further down, honestly left at
+    # benchmark=None - IR 2026/1412's Annex "BENCHMARKS" was not re-checked this
+    # session for a dedicated scrap-EAF-steel or secondary-aluminium product benchmark
+    # (if one even exists; EU ETS free allocation does not cover every route with its
+    # own benchmark), so filling either in now would mean guessing, which
+    # projecthandoff.md section 2 explicitly forbids. find_incomplete_seeds() flags
+    # both; do not seed either into a real Odoo instance until resolved.
     GoodBenchmarkSeed(
         cn_code="7208",
         sector="steel",
+        route="BF-BOF",
         benchmark=1.248,  # VERIFIED: Commission Implementing Regulation
         # (EU) 2026/1412 of 26 June 2026, Annex "BENCHMARKS", Section 1
         # ("Product benchmarks without collection of data on electricity
@@ -294,23 +303,28 @@ GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
         # 2026 determining revised benchmark values for free allocation of
         # emission allowances for the period from 2026 to 2030..."), and
         # cross-checked the figure against an independent secondary-source
-        # mention ("hot metal falls to 1.248 tCO2e per tonne").
-        source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 1, 'Hot metal' row, benchmark value (allowances/t) for 2026-2030",
+        # mention ("hot metal falls to 1.248 tCO2e per tonne"). "Hot metal"
+        # is specifically the BF-BOF-route benchmark (blast-furnace liquid
+        # pig iron), hence route="BF-BOF" here.
+        source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 1, 'Hot metal' row, benchmark value (allowances/t) for 2026-2030 - route-specific to BF-BOF",
     ),
-    # KNOWN LIMITATION (documented, not a bug in the arithmetic): same no-route-dimension
-    # gap as CN 7208 above. This CN 7601 benchmark specifically represents
-    # PRIMARY/electrolytic aluminium production per its source citation below (the
-    # Annex's "Aluminium" benchmark row). Applying it to the secondary_recycled route
-    # (e.g. the aluminium secondary_recycled/TN record) is wrong: secondary/recycled
-    # aluminium's real-world emissions intensity is far lower than primary, so this
-    # benchmark overstates the free-allocation deduction and computes an artificially
-    # low - here, exactly zero - certificate requirement for that record. A real fix
-    # needs a route dimension added to GoodBenchmarkSeed (a schema change, out of scope
-    # for this plan); see docs/PROGRESS.md's M7 section and
-    # docs/m7-source-verification.md for the concrete numeric consequence.
+    GoodBenchmarkSeed(
+        cn_code="7208",
+        sector="steel",
+        route="EAF_scrap",
+        benchmark=None,  # BLOCKED: not yet re-checked against IR 2026/1412's
+        # Annex "BENCHMARKS" for a dedicated scrap-EAF-steel product
+        # benchmark distinct from "Hot metal". Do not assume one exists or
+        # reuse "Hot metal" here - that reuse is exactly the bug this
+        # schema change fixes. Needs the same primary-source verification
+        # process Task 6/9/11 used for the emission factors (see
+        # docs/m7-source-verification.md) before this can be filled in.
+        source_document="BLOCKED: EU ETS product-benchmark applicability to the scrap-EAF steel route not yet verified against IR 2026/1412's Annex 'BENCHMARKS' - do not reuse the BF-BOF 'Hot metal' benchmark above for this route",
+    ),
     GoodBenchmarkSeed(
         cn_code="7601",
         sector="aluminium",
+        route="primary_electrolysis",
         benchmark=1.423,  # VERIFIED: same regulation and Annex section,
         # "Aluminium" row: benchmark value (allowances/t) for 2026-2030 =
         # 1,423 t CO2e/t (average of top 10% = 1,489). This resolves the
@@ -318,8 +332,22 @@ GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
         # generic heat/fuel benchmarks rather than a dedicated product
         # benchmark") - the regulation text confirms a DEDICATED
         # "Aluminium" product benchmark exists for 2026-2030, distinct
-        # from the heat/fuel fallback benchmarks in Section 3.
-        source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 1, 'Aluminium' row, benchmark value (allowances/t) for 2026-2030",
+        # from the heat/fuel fallback benchmarks in Section 3. This
+        # benchmark represents primary/electrolytic aluminium production,
+        # hence route="primary_electrolysis" here.
+        source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 1, 'Aluminium' row, benchmark value (allowances/t) for 2026-2030 - route-specific to primary electrolysis",
+    ),
+    GoodBenchmarkSeed(
+        cn_code="7601",
+        sector="aluminium",
+        route="secondary_recycled",
+        benchmark=None,  # BLOCKED: same reasoning as steel EAF_scrap above.
+        # Secondary/recycled aluminium's real-world emissions intensity is
+        # far lower than primary electrolysis, so reusing the "Aluminium"
+        # benchmark above for this route would overstate the free-
+        # allocation deduction (the exact zero-certificate bug this schema
+        # change fixes) - needs its own primary-source check, not a reuse.
+        source_document="BLOCKED: EU ETS product-benchmark applicability to the secondary/recycled aluminium route not yet verified against IR 2026/1412's Annex 'BENCHMARKS' - do not reuse the primary-electrolysis 'Aluminium' benchmark above for this route",
     ),
 ]
 
@@ -342,7 +370,9 @@ def find_incomplete_seeds() -> List[str]:
             incomplete.append(f"{label}: reference_certificate_price")
     for seed in GOOD_BENCHMARK_SEEDS:
         if seed.benchmark is None:
-            incomplete.append(f"good_benchmark {seed.cn_code}: benchmark")
+            incomplete.append(
+                f"good_benchmark {seed.sector}/{seed.cn_code}/{seed.route}: benchmark"
+            )
     return incomplete
 
 
@@ -351,6 +381,25 @@ def _as_id(created):
     # point in case this script is ever adapted to run inside Odoo's own
     # ORM env instead, where create() returns a recordset.
     return created if isinstance(created, int) else created.id
+
+
+def _get_or_create_route_id(env, route_ids, sector, route):
+    key = (sector, route)
+    route_id = route_ids.get(key)
+    if route_id is None:
+        existing = env["cbam.production.route"].search(
+            [("sector", "=", sector), ("code", "=", route)]
+        )
+        if existing:
+            route_id = existing[0]
+        else:
+            route_id = _as_id(
+                env["cbam.production.route"].create(
+                    {"sector": sector, "code": route}
+                )
+            )
+        route_ids[key] = route_id
+    return route_id
 
 
 def seed_odoo(env, allow_incomplete: bool = False) -> None:
@@ -368,21 +417,7 @@ def seed_odoo(env, allow_incomplete: bool = False) -> None:
 
     route_ids = {}
     for seed in EMISSION_FACTOR_SEEDS:
-        key = (seed.sector, seed.route)
-        route_id = route_ids.get(key)
-        if route_id is None:
-            existing = env["cbam.production.route"].search(
-                [("sector", "=", seed.sector), ("code", "=", seed.route)]
-            )
-            if existing:
-                route_id = existing[0]
-            else:
-                route_id = _as_id(
-                    env["cbam.production.route"].create(
-                        {"sector": seed.sector, "code": seed.route}
-                    )
-                )
-            route_ids[key] = route_id
+        route_id = _get_or_create_route_id(env, route_ids, seed.sector, seed.route)
 
         env["cbam.emission.factor"].create(
             {
@@ -417,8 +452,24 @@ def seed_odoo(env, allow_incomplete: bool = False) -> None:
         good_ids = env["cbam.good"].search(
             [("cn_code", "=", seed.cn_code), ("sector", "=", seed.sector)]
         )
+        route_id = _get_or_create_route_id(env, route_ids, seed.sector, seed.route)
         for good_id in good_ids:
-            env["cbam.good"].write([good_id], {"benchmark": seed.benchmark})
+            existing = env["cbam.good.benchmark"].search(
+                [
+                    ("good_id", "=", good_id),
+                    ("production_route_id", "=", route_id),
+                ]
+            )
+            vals = {
+                "good_id": good_id,
+                "production_route_id": route_id,
+                "benchmark": seed.benchmark,
+                "source_document": seed.source_document,
+            }
+            if existing:
+                env["cbam.good.benchmark"].write([existing[0]], vals)
+            else:
+                env["cbam.good.benchmark"].create(vals)
 
 
 def main():

@@ -5,6 +5,8 @@ access_cbam_installation_user,cbam.installation.user,model_cbam_installation,bas
 access_cbam_installation_manager,cbam.installation.manager,model_cbam_installation,base.group_system,1,1,1,1
 access_cbam_good_user,cbam.good.user,model_cbam_good,base.group_user,1,0,0,0
 access_cbam_good_manager,cbam.good.manager,model_cbam_good,base.group_system,1,1,1,1
+access_cbam_good_benchmark_user,cbam.good.benchmark.user,model_cbam_good_benchmark,base.group_user,1,0,0,0
+access_cbam_good_benchmark_manager,cbam.good.benchmark.manager,model_cbam_good_benchmark,base.group_system,1,1,1,1
 access_cbam_emission_factor_user,cbam.emission.factor.user,model_cbam_emission_factor,base.group_user,1,0,0,0
 access_cbam_emission_factor_manager,cbam.emission.factor.manager,model_cbam_emission_factor,base.group_system,1,1,1,1
 access_cbam_year_parameter_user,cbam.year.parameter.user,model_cbam_year_parameter,base.group_user,1,0,0,0

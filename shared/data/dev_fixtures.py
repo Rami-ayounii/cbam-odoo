@@ -48,8 +48,18 @@ DEV_EMISSION_FACTOR_FIXTURES = [
 ]
 
 DEV_GOOD_FIXTURES = [
-    {"cn_code": "7208.00.00", "sector": "steel", "description": "DEV FIXTURE steel good", "benchmark": 1.0},
-    {"cn_code": "7601.00.00", "sector": "aluminium", "description": "DEV FIXTURE aluminium good", "benchmark": 1.0},
+    {"cn_code": "7208.00.00", "sector": "steel", "description": "DEV FIXTURE steel good"},
+    {"cn_code": "7601.00.00", "sector": "aluminium", "description": "DEV FIXTURE aluminium good"},
+]
+
+# cbam.good.benchmark is route-specific (see cbam_declaration_line.py's
+# good_benchmark_id) - one row per (sector, route) actually exercised by
+# DEV_INSTALLATION_FIXTURES below, arbitrary round numbers same as the rest
+# of this file.
+DEV_GOOD_BENCHMARK_FIXTURES = [
+    {"sector": "steel", "route": "BF-BOF", "benchmark": 1.0},
+    {"sector": "steel", "route": "EAF_scrap", "benchmark": 0.3},
+    {"sector": "aluminium", "route": "primary_electrolysis", "benchmark": 1.0},
 ]
 
 DEV_INSTALLATION_FIXTURES = [
@@ -131,10 +141,28 @@ def seed_dev_fixtures_odoo(env) -> dict:
                     "cn_code": g["cn_code"],
                     "sector": g["sector"],
                     "description": g["description"],
-                    "benchmark": g["benchmark"],
                 }
             )
         )
+
+    for b in DEV_GOOD_BENCHMARK_FIXTURES:
+        route_id = _route_id(b["sector"], b["route"])
+        good_id = good_ids[b["sector"]]
+        existing = env["cbam.good.benchmark"].search(
+            [
+                ("good_id", "=", good_id),
+                ("production_route_id", "=", route_id),
+            ]
+        )
+        if not existing:
+            env["cbam.good.benchmark"].create(
+                {
+                    "good_id": good_id,
+                    "production_route_id": route_id,
+                    "benchmark": b["benchmark"],
+                    "source_document": DEV_SOURCE_LABEL,
+                }
+            )
 
     installation_ids = {}
     for i in DEV_INSTALLATION_FIXTURES:

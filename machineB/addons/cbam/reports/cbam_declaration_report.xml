@@ -45,6 +45,7 @@
                                     <th>Quantity (t)</th>
                                     <th>Embedded Emissions (t CO2e)</th>
                                     <th>Certificates Required</th>
+                                    <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -54,6 +55,7 @@
                                     <td><span t-field="line.quantity_tonnes"/></td>
                                     <td><span t-field="line.embedded_emissions_total"/></td>
                                     <td><span t-field="line.certificates_required"/></td>
+                                    <td><span t-field="line.certificates_status"/></td>
                                 </tr>
                             </tbody>
                         </table>

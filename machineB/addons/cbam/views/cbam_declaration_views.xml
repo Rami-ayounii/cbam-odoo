@@ -49,6 +49,7 @@
                                     <field name="precursor_emissions"/>
                                     <field name="embedded_emissions_total" readonly="1"/>
                                     <field name="certificates_required" readonly="1"/>
+                                    <field name="certificates_status" readonly="1"/>
                                     <button name="action_lookup_emission_factor"
                                             type="object"
                                             string="Lookup Default EF"

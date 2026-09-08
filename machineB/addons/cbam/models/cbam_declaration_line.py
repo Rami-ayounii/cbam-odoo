@@ -13,6 +13,12 @@ DATA_SOURCE_SELECTION = [
     ("default", "Default"),
 ]
 
+CERTIFICATES_STATUS_SELECTION = [
+    ("computed", "Computed"),
+    ("exempt", "Exempt (< 50 t/year)"),
+    ("incomplete", "Incomplete - missing reference data"),
+]
+
 
 class CbamDeclarationLine(models.Model):
     _name = "cbam.declaration.line"
@@ -75,8 +81,31 @@ class CbamDeclarationLine(models.Model):
         "certificates_required via @api.depends - a plain search() call "
         "inside the compute method would not be tracked as a dependency.",
     )
+    good_benchmark_id = fields.Many2one(
+        "cbam.good.benchmark",
+        string="EU ETS Benchmark",
+        compute="_compute_good_benchmark_id",
+        store=True,
+        help="Resolved cbam.good.benchmark record for this line's good "
+        "AND production route. EU ETS benchmarks are route-specific (the "
+        "'Hot metal' benchmark applies to BF-BOF, not to scrap-EAF, for "
+        "example) - looking this up by good_id alone, as an earlier "
+        "version of this module did, silently applied the wrong route's "
+        "benchmark. Stored as a real relation for the same @api.depends "
+        "tracking reason as year_parameter_id above.",
+    )
     certificates_required = fields.Float(
         compute="_compute_certificates_required", store=True, digits=(16, 3)
+    )
+    certificates_status = fields.Selection(
+        CERTIFICATES_STATUS_SELECTION,
+        compute="_compute_certificates_required",
+        store=True,
+        help="Distinguishes WHY certificates_required is 0.0: a genuinely "
+        "exempt line vs. one that's 0.0 only because a year parameter or "
+        "route-specific EU ETS benchmark hasn't been seeded yet (M7). "
+        "Without this the two cases were visually identical in the UI - "
+        "an incomplete line looked exactly like a compliant, exempt one.",
     )
 
     source_document_ids = fields.One2many(
@@ -112,10 +141,28 @@ class CbamDeclarationLine(models.Model):
                 markup_pct=markup_pct,
             )
 
+    @api.depends("good_id", "installation_id.production_route_id")
+    def _compute_good_benchmark_id(self):
+        for line in self:
+            if not line.good_id or not line.installation_id.production_route_id:
+                line.good_benchmark_id = False
+                continue
+            line.good_benchmark_id = self.env["cbam.good.benchmark"].search(
+                [
+                    ("good_id", "=", line.good_id.id),
+                    (
+                        "production_route_id",
+                        "=",
+                        line.installation_id.production_route_id.id,
+                    ),
+                ],
+                limit=1,
+            )
+
     @api.depends(
         "embedded_emissions_total",
         "quantity_tonnes",
-        "good_id.benchmark",
+        "good_benchmark_id.benchmark",
         "carbon_price_paid_origin",
         "declaration_id.is_exempt",
         "year_parameter_id.cbam_factor_year",
@@ -129,6 +176,7 @@ class CbamDeclarationLine(models.Model):
                 # embedded emissions, so this must short-circuit before the
                 # year-parameter check below.
                 line.certificates_required = 0.0
+                line.certificates_status = "exempt"
                 continue
 
             year_parameter = line.year_parameter_id
@@ -137,16 +185,31 @@ class CbamDeclarationLine(models.Model):
                 # year (M7) - can't produce a compliant number, so leave at
                 # 0 rather than guess. The line stays visibly incomplete.
                 line.certificates_required = 0.0
+                line.certificates_status = "incomplete"
+                continue
+
+            if not line.good_benchmark_id:
+                # No EU ETS benchmark seeded yet for this good's specific
+                # production route (M7's "no route dimension" gap, now
+                # fixed at the schema level - but real benchmark values for
+                # non-primary routes like scrap-EAF steel or secondary
+                # aluminium may still be genuinely unresolved against the
+                # primary source, see shared/data/seed_emission_factors.py).
+                # Leave at 0 rather than silently borrow another route's
+                # benchmark. The line stays visibly incomplete.
+                line.certificates_required = 0.0
+                line.certificates_status = "incomplete"
                 continue
 
             line.certificates_required = calculate_certificates_required(
                 embedded_emissions_total=line.embedded_emissions_total,
                 quantity_tonnes=line.quantity_tonnes,
-                benchmark=line.good_id.benchmark,
+                benchmark=line.good_benchmark_id.benchmark,
                 cbam_factor_year=year_parameter.cbam_factor_year,
                 carbon_price_paid_origin=line.carbon_price_paid_origin,
                 reference_certificate_price=year_parameter.reference_certificate_price,
             )
+            line.certificates_status = "computed"
 
     @api.constrains("good_id", "installation_id")
     def _check_sector_consistency(self):

@@ -29,6 +29,12 @@
         <field name="view_mode">tree,form</field>
     </record>
 
+    <record id="action_cbam_good_benchmark" model="ir.actions.act_window">
+        <field name="name">EU ETS Benchmarks</field>
+        <field name="res_model">cbam.good.benchmark</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
     <record id="action_cbam_year_parameter" model="ir.actions.act_window">
         <field name="name">Year Parameters</field>
         <field name="res_model">cbam.year.parameter</field>
@@ -83,6 +89,12 @@
               parent="menu_cbam_configuration"
               action="action_cbam_emission_factor"
               sequence="40"/>
+
+    <menuitem id="menu_cbam_good_benchmark"
+              name="EU ETS Benchmarks"
+              parent="menu_cbam_configuration"
+              action="action_cbam_good_benchmark"
+              sequence="45"/>
 
     <menuitem id="menu_cbam_year_parameter"
               name="Year Parameters"

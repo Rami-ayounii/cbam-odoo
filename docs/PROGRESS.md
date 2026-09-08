@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Done, real data resolved (9/10 fields; not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; only steel EAF_DRI's `direct_ef` stays blocked, structurally absent from the source (not a fetch failure) | `2a4deec`, `c35dbbe`, `4923a9e` |
+| M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); the audit follow-up below also gave `cbam.good.benchmark` a real route dimension, honestly leaving 2 route-specific benchmark values blocked rather than silently wrong — `find_incomplete_seeds()` now returns 3 items, see "Independent audit + follow-up fixes" section | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
 
@@ -788,6 +788,73 @@ smoke test had anything to work with. None of this touched repo state.
 (125 + the 2 new regression tests from this task's Step 1; no existing
 test's expectations changed; unchanged after the `run_evaluation.py` prompt-
 unification fix).
+
+---
+
+## Independent audit + follow-up fixes (2026-09-08)
+
+A separate session ran an adversarial, from-scratch audit of the whole
+codebase (three parallel reviews covering the calc/Odoo layer, the
+orchestrator agent loop, and infra/security/hygiene) without trusting this
+doc's own claims first. Verdict: 8/10 - the "zero business logic in the
+orchestrator" and "0% field accuracy" claims both held up under line-by-line
+adversarial review, no committed secrets, and the M7 "known gaps" already
+documented above matched the code exactly. Full findings led to these
+follow-ups, all applied and tested (`python -m pytest machineB/tests/
+shared/ -q` → 130 passed):
+
+**Dependency pinning + repo hygiene:** all Docker image tags
+(`tailscale/tailscale`, `ollama/ollama`, `nginx`, `postgres`, `odoo` across
+`machineA/docker-compose.yml`, `machineB/docker-compose.yml`,
+`docker-compose.local-dev.yml`) and all three `requirements*.txt` files
+pinned to specific, verified-current versions (previously `:latest`/
+unpinned - a real reproducibility risk for an academic project graded
+later). Root `README.md` added (previously only `projecthandoff.md`/this
+file existed, no entry point for a first-time reader). `cbam_declaration_
+line.py`'s `action_lookup_emission_factor` now has an inline comment
+explaining the Jan-1-of-reporting-year date assumption.
+
+**`GoodBenchmarkSeed` route-dimension fix (the concrete M7 caveat above):**
+`cbam.good.benchmark` is now its own Odoo model
+(`machineB/addons/cbam/models/cbam_good_benchmark.py`), keyed on
+`(good_id, production_route_id)` instead of a flat `benchmark` field on
+`cbam.good` keyed only by `(cn_code, sector)`. `cbam_declaration_line.py`
+gained a stored `good_benchmark_id` compute (same `@api.depends`-tracking
+pattern as `year_parameter_id`) that resolves the benchmark by the line's
+actual installation route, not just its good - fixing the exact bug
+described above where the BF-BOF "Hot metal" benchmark was silently applied
+to the `steel EAF_scrap/AZ` record and the primary-aluminium benchmark to
+`aluminium secondary_recycled/TN`, zeroing out both. The real benchmark
+VALUES for those two routes were **not** re-verified against a primary
+source this session (that's separate research work, same category as
+Task 6/9/11's emission-factor fetches) - both are honestly left `None`/
+BLOCKED in `shared/data/seed_emission_factors.py` rather than guessed,
+so `find_incomplete_seeds()` now returns 3 items instead of 1 (steel
+EAF_DRI direct_ef, steel EAF_scrap benchmark, aluminium secondary_recycled
+benchmark). `shared/data/dev_fixtures.py` updated to match (arbitrary dev
+numbers, `DEV_GOOD_BENCHMARK_FIXTURES`, still clearly labeled fake).
+
+**`certificates_status` field (the exempt-vs-incomplete ambiguity noted
+above):** `cbam.declaration.line` gained a `certificates_status` Selection
+(`computed`/`exempt`/`incomplete`), computed alongside `certificates_required`
+in the same method, so a genuinely exempt line (< 50 t/year) is no longer
+visually identical in the UI/PDF report to one that's 0.0 only because a
+year parameter or route-specific benchmark hasn't been seeded yet. Surfaced
+in both declaration-line views and the QWeb report.
+
+**`write_declaration_line` schema/validation drift:** `tool_args.py`'s
+`WriteDeclarationLineArgs` only validated "`emission_factor_id` required
+when `data_source=default`"; the schema's own description also promises
+"must be omitted/null when `data_source=actual`", which nothing enforced.
+Added the missing direction plus a regression test
+(`test_write_declaration_line_rejects_emission_factor_id_for_actual_source`
+in `machineB/tests/test_tools.py`).
+
+**Not done, deliberately out of scope for this pass:** the model's 0%
+field-accuracy problem itself (the audit's highest-priority open item) -
+needs either a stronger/larger model benchmarked against the same M9
+harness, or real prompt/grounding work on `extract_field`, both of which
+are a separate, larger effort the human partner asked to scope separately.
 
 ---
 

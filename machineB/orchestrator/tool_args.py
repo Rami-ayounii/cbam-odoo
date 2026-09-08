@@ -92,6 +92,16 @@ class WriteDeclarationLineArgs(BaseModel):
             raise ValueError(
                 "emission_factor_id is required when data_source is 'default'"
             )
+        # Mirrors write_declaration_line.json's own description ("Must be
+        # omitted/null when data_source = actual") - without this the
+        # schema and the actual validation disagreed: a model could supply
+        # both data_source="actual" and an emission_factor_id, and it would
+        # be silently accepted (then presumably ignored downstream) instead
+        # of rejected per the documented contract.
+        if self.data_source == "actual" and self.emission_factor_id is not None:
+            raise ValueError(
+                "emission_factor_id must be omitted/null when data_source is 'actual'"
+            )
         return self
 
     @model_validator(mode="after")

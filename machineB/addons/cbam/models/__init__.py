@@ -1,6 +1,7 @@
 from . import cbam_production_route
 from . import cbam_installation
 from . import cbam_good
+from . import cbam_good_benchmark
 from . import cbam_emission_factor
 from . import cbam_year_parameter
 from . import cbam_declaration

@@ -15,13 +15,14 @@ class CbamGood(models.Model):
         help="True if this good has precursor materials whose embedded "
         "emissions carry through (formula sheet section 1.6).",
     )
-    benchmark = fields.Float(
-        string="EU ETS Benchmark",
-        digits=(16, 6),
-        help="EU ETS free-allocation benchmark for this good, t CO2e per "
-        "tonne of product. Feeds calculate_certificates_required - never "
-        "hardcode this in code, source it from the EU ETS benchmark "
-        "decision in force for the reporting year.",
+    benchmark_ids = fields.One2many(
+        "cbam.good.benchmark",
+        "good_id",
+        string="EU ETS Benchmarks",
+        help="Per-production-route EU ETS free-allocation benchmarks. A "
+        "single CN code can map to more than one route (e.g. steel via "
+        "BF-BOF vs. EAF), and each route's real-world benchmark differs -"
+        " see cbam.good.benchmark.",
     )
 
     _sql_constraints = [
