@@ -47,13 +47,20 @@ EUR 75.32), re-verified directly against the raw HTML of the European
 Commission's official price page as of this session's date (2026-09-08);
 Q3 2026 (due 5 October 2026) and Q4 2026 (due 4 January 2027) table cells
 are still empty (`&nbsp;`) in the source, i.e. genuinely not published yet
-- not a fetch failure. `cbam_factor_year` remains `None` and is deliberately
-NOT touched by this task: Task 6 found a real, quotable Directive
-2003/87/EC Art. 10a(1a) figure (97.5% for 2026) that appears to run in the
-opposite direction from this codebase's pre-existing 0.025-for-2026
-convention - a `calc_engine.py` formula-direction question outside a
-data-only task's mandate (`calc_engine.py` must show zero changes here),
-still escalated to the human partner, unchanged by this task.
+- not a fetch failure.
+
+UPDATE (Task 11, same day): `cbam_factor_year` is now filled in as `0.025`
+for 2026. Task 6 found a real, quotable Directive 2003/87/EC Art. 10a(1a)
+figure (the "CBAM factor" = 97.5% retained free allocation for 2026) that
+runs in the opposite direction from this codebase's pre-existing
+0.025-for-2026 convention, and left it as a `calc_engine.py`
+formula-direction question outside a data-only task's mandate. That
+question was already resolved before Task 9 started: commit db50c1f fixed
+`calc_engine.py`'s formula to `benchmark * (1 - cbam_factor_year) *
+quantity_tonnes`, which makes the pre-existing 0.025 convention (the
+complement of the Directive's 97.5%) directionally correct again. Task 11
+confirmed this (re-checked the Directive text and the current formula) and
+filled in the value - see docs/m7-source-verification.md.
 
 Each still-`None` value below carries a comment explaining exactly why.
 seed_odoo() refuses to write to a real Odoo instance while any placeholder
@@ -221,28 +228,26 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
 YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
     YearParameterSeed(
         year=2026,
-        cbam_factor_year=None,  # BLOCKED (not a fetch failure - a found
-        # number with an unresolved unit/direction question): Directive
-        # 2003/87/EC Art. 10a(1a) (as amended, consolidated text
-        # 02003L0087--EN--01.03.2024) reads: "...shall be equal to 97,5 %
-        # in 2026, 95 % in 2027, 90 % in 2028, 77,5 % in 2029, 51,5 % in
-        # 2030, 39 % in 2031, 26,5 % in 2032 and 14 % in 2033. From 2034,
-        # no CBAM factor shall apply." That "CBAM factor" is the fraction
-        # of free allocation STILL RETAINED (97.5% in 2026, falling to 0%
-        # by 2034). But this codebase's existing cbam_factor_year usage
-        # (shared/data/dev_fixtures.py, docs/PROGRESS.md, the M4 plan) is
-        # 0.025 for 2026 with the comment "phase-out factor (2.5% 2026 ->
-        # 100% 2034)" - the COMPLEMENT of the Directive's figure, rising
-        # the opposite direction. calc_engine.calculate_certificates_required
-        # computes benchmark_deduction = benchmark * cbam_factor_year *
-        # quantity_tonnes; plugging in 0.025 for 2026 makes that deduction
-        # tiny, so importers would owe certificates for nearly their full
-        # embedded emissions from year one - the opposite of the gradual
-        # phase-in the Directive describes. Whether the field should hold
-        # 0.975 (the Directive's literal figure) or 0.025 (matching the
-        # pre-existing convention/tests) is a formula-direction question
-        # outside this task's data-only scope ("do not touch the
-        # mechanism") - escalated in docs/m7-source-verification.md rather than guessed.
+        cbam_factor_year=0.025,  # VERIFIED (Task 11, resolves the gap
+        # Tasks 6/9 escalated): Directive 2003/87/EC Art. 10a(1a) (as
+        # amended, consolidated text 02003L0087--EN--01.03.2024) reads:
+        # "...shall be equal to 97,5 % in 2026, 95 % in 2027, 90 % in
+        # 2028, 77,5 % in 2029, 51,5 % in 2030, 39 % in 2031, 26,5 % in
+        # 2032 and 14 % in 2033. From 2034, no CBAM factor shall apply."
+        # That "CBAM factor" is the fraction of free allocation STILL
+        # RETAINED (97.5% in 2026, falling to 0% by 2034) - the codebase's
+        # own field holds the COMPLEMENT of that figure (0.025 for 2026),
+        # which is directionally correct now: commit db50c1f ("Fix
+        # inverted cbam_factor_year direction in certificate calculation",
+        # already on this branch before Task 9) changed
+        # calc_engine.calculate_certificates_required's formula to
+        # benchmark_deduction = benchmark * (1 - cbam_factor_year) *
+        # quantity_tonnes, so a low early-year value now produces a large
+        # deduction, matching the Directive's described gradual phase-in
+        # (free allocation - and thus the deduction it funds - shrinks
+        # toward zero by 2034 as cbam_factor_year rises toward 1.0). See
+        # docs/m7-source-verification.md's Field 8 / Task 9 addendum
+        # sections for the full derivation.
         reference_certificate_price=75.32,  # VERIFIED (Task 9, resolves the
         # gap Task 6 escalated): average of the 2026 quarterly CBAM
         # certificate prices published so far on the European Commission's
@@ -259,7 +264,7 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
         # single official annual figure (there isn't one for 2026 - the
         # mechanism is explicitly quarterly this year) - re-average once Q3
         # and/or Q4 publish.
-        source_document="Average of 2026 Q1 (EUR 75.36, published 7 April 2026) and Q2 (EUR 75.28, published 6 July 2026) CBAM certificate prices, the only 2026 quarters published as of 2026-09-08, per the European Commission's official price page (taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/price-cbam-certificates_en); Q3/Q4 2026 not yet published - this is an average of published quarterly figures, not a single official annual price - see docs/m7-source-verification.md. cbam_factor_year remains unresolved (out of this task's scope - see comment above and docs/m7-source-verification.md)",
+        source_document="reference_certificate_price: average of 2026 Q1 (EUR 75.36, published 7 April 2026) and Q2 (EUR 75.28, published 6 July 2026) CBAM certificate prices, the only 2026 quarters published as of 2026-09-08, per the European Commission's official price page (taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/price-cbam-certificates_en); Q3/Q4 2026 not yet published - this is an average of published quarterly figures, not a single official annual price. cbam_factor_year: Directive 2003/87/EC Art. 10a(1a) (consolidated text 02003L0087--EN--01.03.2024) sets the 'CBAM factor' (fraction of free allocation retained) at 97.5% for 2026; this field stores the complement (0.025), matching calc_engine.py's benchmark * (1 - cbam_factor_year) formula (see docs/m7-source-verification.md)",
     ),
 ]
 

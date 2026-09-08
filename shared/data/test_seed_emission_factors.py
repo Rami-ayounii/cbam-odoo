@@ -47,34 +47,42 @@ def test_every_seed_has_a_source_document_citation():
 
 
 def test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields():
-    # M7 (2026-09-08, Task 9 fixture redesign): Task 6 seeded the two
-    # GoodBenchmarkSeed records (steel CN 7208, aluminium CN 7601) and
-    # markup_pct on every EmissionFactorSeed with real, cited values
-    # (Commission Implementing Regulation (EU) 2026/1412's benchmarks;
-    # IR 2025/2621's flat 10% 2026 markup rate). Task 9 replaced 4 of the 5
-    # originally-guessed country/route pairings (France x2, Norway, and the
-    # Tunisia pairing which turned out to have real data after all, just
-    # missed by Task 6's search) with real, populated non-EU/non-EEA
-    # country/route combinations IR 2025/2621 actually publishes CN 7208/
-    # CN 7601 default values for (Turkiye BF-BOF, Azerbaijan EAF_scrap,
-    # Bahrain primary_electrolysis, Tunisia secondary_recycled), and
-    # resolved reference_certificate_price for 2026 as the average of the
-    # two published 2026 quarterly CBAM certificate prices - see
-    # docs/m7-source-verification.md. Two fields remain genuinely blocked
-    # (not merely unattempted - each has a documented, cited reason in
+    # M7 (2026-09-08, Task 9 fixture redesign, Task 11 cbam_factor_year fix):
+    # Task 6 seeded the two GoodBenchmarkSeed records (steel CN 7208,
+    # aluminium CN 7601) and markup_pct on every EmissionFactorSeed with
+    # real, cited values (Commission Implementing Regulation (EU) 2026/1412's
+    # benchmarks; IR 2025/2621's flat 10% 2026 markup rate). Task 9 replaced
+    # 4 of the 5 originally-guessed country/route pairings (France x2,
+    # Norway, and the Tunisia pairing which turned out to have real data
+    # after all, just missed by Task 6's search) with real, populated
+    # non-EU/non-EEA country/route combinations IR 2025/2621 actually
+    # publishes CN 7208/CN 7601 default values for (Turkiye BF-BOF,
+    # Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia
+    # secondary_recycled), and resolved reference_certificate_price for 2026
+    # as the average of the two published 2026 quarterly CBAM certificate
+    # prices. Task 11 resolved cbam_factor_year (0.025 for 2026, the
+    # complement of Directive 2003/87/EC Art. 10a(1a)'s 97.5% figure,
+    # matching calc_engine.py's post-db50c1f formula direction) - see
+    # docs/m7-source-verification.md. Only one field remains genuinely
+    # blocked (not merely unattempted - it has a documented, cited reason in
     # seed_emission_factors.py): steel EAF_DRI's direct_ef (no country
     # anywhere in the regulation carries a DRI/EAF route tag on a real data
-    # row) and cbam_factor_year (a real number exists but resolving it is a
-    # calc_engine.py formula-direction question outside this task's
-    # data-only scope, deliberately not touched here). This test names
-    # exactly those and will start failing (usefully) the moment either is
-    # filled in, or if a regression drops something that was already
-    # verified.
+    # row - structurally absent from the source, not a per-country gap).
+    # This test names exactly that and will start failing (usefully) the
+    # moment it is filled in, or if a regression drops something that was
+    # already verified.
     incomplete = find_incomplete_seeds()
     assert incomplete == [
         "emission_factor steel/EAF_DRI/TR: direct_ef",
-        "year_parameter 2026: cbam_factor_year",
     ]
+
+
+def test_year_parameter_2026_cbam_factor_year_is_no_longer_a_placeholder():
+    from seed_emission_factors import YEAR_PARAMETER_SEEDS
+
+    seed_2026 = next(s for s in YEAR_PARAMETER_SEEDS if s.year == 2026)
+    assert seed_2026.cbam_factor_year is not None
+    assert 0.0 < seed_2026.cbam_factor_year < 1.0
 
 
 def test_seed_odoo_refuses_to_write_incomplete_data_by_default():
