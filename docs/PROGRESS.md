@@ -562,6 +562,79 @@ expectations changed as part of this pass).
 
 ---
 
+## Agentic completion-gap follow-up (2026-09-08)
+
+Direct follow-up to M6/M9 above's finding — "the model calls tools but
+never reaches `write_declaration_line`". The fix is text-only: the
+orchestrator's `SYSTEM_PROMPT` (`machineB/orchestrator/main.py`) now states
+explicitly that the task is not finished until `write_declaration_line` has
+been called, tells the model to call `flag_for_human_review` rather than
+just stopping when it can't converge, and tells it to gather real values via
+`extract_field`/`lookup_default_value` before calling `calculate_emissions`
+rather than passing placeholder/zero values. `write_declaration_line.json`'s
+schema `description` gained one sentence stating the same completion signal
+at the tool-schema level. Per this task's own constraint,
+`agent_loop.py` and `tools.py` were not touched — confirmed with `git diff
+--stat machineB/orchestrator/agent_loop.py machineB/orchestrator/tools.py`
+returning empty output before committing (commit `dfe14c2`).
+
+**Re-running M6 (`docs/m6-live-verification.md`, overwritten by this pass):**
+the same synthetic record (`SYNTH-0000-B286B5`, steel/BF-BOF/EG) now drives
+the model through 6 real tool-call iterations — `check_consistency`,
+several corrected attempts at `extract_field`/`lookup_default_value` (two of
+which the model first called with wrong/missing arguments and self-corrected
+after real Pydantic validation errors came back), then a real
+`lookup_default_value` miss (the model looked up `aluminium/EAF_scrap`
+instead of the actual `steel/BF-BOF` context — a separate field-grounding
+bug, not the completion gap this task targets), and finally a genuine
+`flag_for_human_review` call. Final job status: `escalated`, exit code 0.
+This is a real behavior change from the prior `no_write`/silent-stop
+finding: the model now reaches an actual terminal state via a real tool
+call instead of just stopping mid-loop.
+
+**Re-running M9 (`docs/evaluation-prompt-v2-2026-09-08.md`, 20 records,
+`llama3.1:8b`, through the real nginx gate at `localhost:8443`):**
+
+| | completed | escalated | field accuracy (all 6 fields) |
+|---|---|---|---|
+| Before (`docs/evaluation.md`) | 17/20 | 3/20 | 0% |
+| After (`docs/evaluation-prompt-v2-2026-09-08.md`) | 13/20 | 7/20 | 0% |
+
+Reported exactly as measured, with no rounding either direction: completions
+went down and escalations went up, and per-field accuracy is unchanged at
+0% across all 6 scored fields in both runs. This is not a clean improvement
+on the M9 numbers.
+
+**Important caveat on the M9 comparison:** `shared/evaluation/run_evaluation.py`
+defines its own separate, shorter `SYSTEM_PROMPT` constant (not an import of
+`machineB/orchestrator/main.py`'s), and that file is outside this task's
+scope to modify (not in Task 5's file list). This means the M9 re-run above
+only exercised the `write_declaration_line.json` description change — the
+actual `SYSTEM_PROMPT` strengthening was never in the request path for this
+comparison at all. The M6 re-run above is the only real evidence of the
+`SYSTEM_PROMPT` change's effect, and it shows a genuine behavioral
+difference (silent stop → real escalation). Neither run sets a temperature
+or seed, so some of the M9 delta may also be ordinary sampling variance
+rather than a signal about the schema-description change specifically. A
+clean read on the `SYSTEM_PROMPT`'s effect on the M9 aggregate numbers would
+require also updating `run_evaluation.py`'s own prompt (or importing
+`main.SYSTEM_PROMPT` directly) — flagged here as follow-up work, out of this
+task's scope.
+
+**Infra note:** the `docker-compose.local-dev.yml` stack from the September
+6 pass ran in a worktree (`m4-live-infra`) since deleted, so `.env.local-dev`
+and all three named volumes (Ollama models, Postgres data, Odoo data) had to
+be recreated from scratch in this worktree — fresh random secrets, a fresh
+`ollama pull llama3.1:8b` (4.9GB), and a fresh `scripts/init_local_dev_odoo.py`
+run (new `cbam` database, module install, seeded fixtures) before Step 9's
+smoke test had anything to work with. None of this touched repo state.
+
+**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 127 passed
+(125 + the 2 new regression tests from this task's Step 1; no existing
+test's expectations changed).
+
+---
+
 ## Architecture Reference
 
 ```
