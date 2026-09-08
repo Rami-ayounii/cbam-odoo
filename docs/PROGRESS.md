@@ -1276,6 +1276,88 @@ genuine document-value extraction, not carryover or plumbing.
 
 ---
 
+## Closing the actual-sourced extraction gap (2026-09-08, same day)
+
+Direct continuation, at the human partner's request to keep going toward
+the `direct_emissions_actual`/`indirect_emissions_actual` gap the section
+above left open. Created a genuinely `data_source="actual"` real
+declaration line (id 5, `SYNTH-0018-D46D18` - steel/CN/BF-BOF, quantity
+405.08t, real ground truth `direct_emissions_actual=2.172`,
+`indirect_emissions_actual=0.079`, `carbon_price_paid_origin=12.04`, a
+document whose text genuinely contains these numbers, unlike the earlier
+`SYNTH-0000-B286B5` line whose carbon-intensity-report document has a
+blank emissions section) and ran real jobs against it.
+
+**First real run (temperature fix already in effect, no new fix yet):**
+`extract_field` correctly retrieved the document text, and the model
+correctly read `direct_emissions_actual=2.172`/`indirect_emissions_actual=
+0.079`/`carbon_price_paid_origin=12.04` out of it - genuine, accurate
+extraction, working already. But it then called `calculate_emissions`
+using `write_declaration_line`'s field names (`direct_emissions_actual`
+instead of `calculate_emissions`'s actual `direct_ef`), got a validation
+error, pivoted to an irrelevant `lookup_default_value` call instead of
+retrying with the right key name, and the final `write_declaration_line`
+call included only `embedded_emissions_total` (not a real argument on that
+tool) - discarding all three correctly-extracted numbers. Real database
+result: all three actual-value fields landed at their 0.0 default, same
+failure shape as the "default"-sourced case in the section above, just for
+a different underlying reason (schema-name confusion between two tools
+that both take "the direct emission number" under different names, not a
+missing deterministic source this time).
+
+**Fix - a prompt-only fix, deliberately tried before anything more
+invasive.** Since there's no deterministic dispatcher-side value to
+auto-inject here (unlike `lookup_default_value`'s result - `extract_field`
+returns raw text; the model itself does the reading, so there is no
+structured number for `ToolDispatcher` to remember and re-inject), the
+narrower architectural fix from the section above doesn't apply directly.
+Added one explicit paragraph to `SYSTEM_PROMPT`
+(`machineB/orchestrator/main.py`) stating plainly that
+`calculate_emissions`'s `embedded_emissions_total` is a preview, not the
+write payload, and that `write_declaration_line` must separately carry the
+same `direct_emissions_actual`/`indirect_emissions_actual`/
+`carbon_price_paid_origin`/`precursor_emissions` values found earlier,
+under those exact field names (not `calculate_emissions`'s `direct_ef`/
+`indirect_ef`).
+
+**Result, two independent live re-runs of the same line (real
+`llama3.1:8b`, real Odoo, real orchestrator API):** both runs correctly
+wrote `direct_emissions_actual=2.172` and `indirect_emissions_actual=
+0.079` - exactly matching ground truth, reproducibly, not a one-off. Both
+runs still left `carbon_price_paid_origin=0.00` (ground truth: 12.04) -
+the model extracted this value correctly in an earlier `calculate_emissions`
+attempt in both traces, but never carried it into the final
+`write_declaration_line` call either time. A real, reproducible partial
+fix: 0 of 3 actual-value fields correct before this change, 2 of 3 after,
+consistently across two samples - not full closure, and the remaining gap
+(one specific field, `carbon_price_paid_origin`, consistently dropped) has
+the same shape as everything else in this project's live-testing history:
+the model reliably omits some subset of several values it must carry
+across calls, just a smaller subset now than before every fix this session
+made. `embedded_emissions_total` for this line computed correctly both
+times (879.834 = 405.08 x 2.172, verified against the real formula) because
+Odoo's own `_compute_embedded_emissions_total` recomputes independently
+from the real `direct_emissions_actual` field - it does not trust
+whatever total the model self-reported via `calculate_emissions`, which
+this run's trace also showed drifting to a wrong number (891.176, from an
+irrelevant `lookup_default_value` call) without that error ever reaching
+the real stored data.
+
+**Not done - a real next lever, not attempted tonight:** a more invasive
+fix mirroring the `lookup_default_value` carryover mechanism could work
+here too - remember the last raw value the model supplied under
+`write_declaration_line`'s exact field names in ANY prior tool call
+(regardless of which tool or whether that call validated), and auto-fill
+`write_declaration_line` from that memory when the model omits a field it
+already stated once. This is more speculative than the lookup-result
+carryover fix (it would be reading from the model's own unvalidated,
+possibly-wrong intermediate statements, not a deterministic tool output),
+so it was deliberately not attempted without discussing the tradeoff
+first - flagged here as the concrete next step if further closing this
+gap is worth the added complexity.
+
+---
+
 ## Architecture Reference
 
 ```
