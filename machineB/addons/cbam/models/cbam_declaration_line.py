@@ -210,6 +210,12 @@ class CbamDeclarationLine(models.Model):
                 # string like "0-01-01" or "False-01-01".
                 continue
 
+            # Always Jan 1 of the reporting year, never the line's actual
+            # submission date: CBAM declarations are annual (one filing per
+            # calendar year, projecthandoff.md §2), so any valid_from/valid_to
+            # emission-factor transition that falls mid-year can never be
+            # selected for that year's declaration. Revisit if a future
+            # regulatory change moves CBAM back to sub-annual filing.
             declaration_date = fields.Date.from_string(
                 f"{line.declaration_id.reporting_year}-01-01"
             )

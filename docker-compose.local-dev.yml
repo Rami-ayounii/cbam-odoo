@@ -27,7 +27,7 @@
 services:
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.3
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
     volumes:
@@ -49,7 +49,7 @@ services:
               capabilities: [gpu]
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.30.4
     environment:
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     volumes:
@@ -63,7 +63,7 @@ services:
     network_mode: "service:ollama"
 
   db:
-    image: postgres:16
+    image: postgres:16.15
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-odoo}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -73,7 +73,7 @@ services:
     networks: [local-dev]
 
   odoo:
-    image: odoo:17
+    image: odoo:17.0-20260817
     depends_on: [db]
     environment:
       - HOST=db

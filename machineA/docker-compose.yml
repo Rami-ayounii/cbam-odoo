@@ -1,7 +1,7 @@
 services:
 
   tailscale:
-    image: tailscale/tailscale:latest
+    image: tailscale/tailscale:v1.102.3
     container_name: machineA-tailscale
     hostname: cbam-machineA
     environment:
@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.3
     container_name: machineA-ollama
     network_mode: service:tailscale
     volumes:
@@ -35,7 +35,7 @@ services:
     #           capabilities: [gpu]
 
   nginx:
-    image: nginx:latest
+    image: nginx:1.30.4
     container_name: machineA-nginx
     network_mode: service:tailscale
     environment:
