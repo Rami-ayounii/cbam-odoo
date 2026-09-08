@@ -1,49 +1,59 @@
 """M7: seed cbam.emission.factor / cbam.year.parameter / cbam.good.benchmark
 with authoritative reference data.
 
-STATUS (2026-09-08 re-attempt): a prior session could not reach the primary
-sources at all (empty EUR-Lex fetches, a garbled JRC134682 text layer, no
-local `poppler`). This session had `pdftotext` (poppler/xpdf) available and
-fetched the actual regulation/report PDFs directly (bypassing WebFetch's
-10 MB cap with `curl` + local `pdftotext -raw` extraction). That produced
-clean, directly-quotable primary text - and, reading it carefully, revealed
-that most of the *specific* country/route pairings this file originally
-guessed at (BF-BOF/FR, EAF_scrap/FR, EAF_DRI/TR, primary_electrolysis/NO,
-secondary_recycled/TN) do not actually exist in the primary sources as
-distinct figures:
-  - France never appears as a country in either source's steel tables:
-    CBAM default values only cover non-EU countries of origin (France is
-    an EU member, so no French import ever needs a CBAM default value).
-  - Commission Implementing Regulation (EU) 2025/2621's Annex I/IV define
-    a "(D) Carbon Steel based on DRI/EAF" route indicator in their legend,
-    but across the entire ~170-country, ~2,400-page Annex I that indicator
-    is never actually attached to a single data row (confirmed by an
-    exhaustive count) - Turkiye's own CN 7208 entry, and every other
-    country's, is tagged "(C) BF/BOF". There is no DRI/EAF-route CBAM
-    default value in this regulation for any country.
-  - Norway is not listed in IR 2025/2621's Annex I at all, and JRC134682
-    states outright that "Norway and Iceland form part of the EU ETS and
-    are therefore not affected by the CBAM" (section 4.1) - Norway is
-    legally out of CBAM's scope, not merely missing data.
-  - Tunisia is absent from both sources' steel/aluminium per-country
-    tables (it falls under IR 2025/2621's Annex I "Other Countries and
-    Territories" catch-all, which for CN 7601 is tagged "(K) primary
-    Aluminium", not "(L) secondary" - so it cannot honestly stand in for
-    a "secondary_recycled" figure either).
-See docs/m7-source-verification.md for the full fetch-by-fetch record,
-exact quotes and citations.
+STATUS (2026-09-08, Task 9 fixture redesign): an earlier same-day session
+(Task 6) established the primary-source fetch path (`curl` + local
+`pdftotext -raw`, bypassing WebFetch's 10 MB PDF cap) and found that 4 of
+the 5 originally-guessed country/route pairings (BF-BOF/FR, EAF_scrap/FR,
+EAF_DRI/TR, primary_electrolysis/NO) do not exist in the primary sources:
+France and Norway are EU/EU-ETS members and out of CBAM's import scope
+entirely, and the "(D) Carbon Steel based on DRI/EAF" route indicator is
+defined in Commission Implementing Regulation (EU) 2025/2621's Annex I/IV
+legend but is never actually attached to a single data row anywhere in the
+~135,000-line regulation text for any country (re-confirmed this task:
+`grep -cF "(D)"` = 2, both legend definitions). Task 6 also concluded the
+5th pairing (secondary_recycled/TN) had no data - that specific conclusion
+was wrong. This task re-fetched the same 41 MB regulation PDF (confirmed
+byte-identical: 41,252,987 bytes, 135,102 extracted lines) and re-read
+Tunisia's own country block in full: it *does* carry a CN 7601 row tagged
+"(L) secondary Aluminium" (Task 6's search evidently missed it, most likely
+an artifact of an anchored `^Tunisia$` grep against lines containing an
+extraction-mangled non-ASCII byte - substring search finds it fine).
 
-What *did* come back clean and get filled in below: the EU ETS benchmark
-values for hot metal (steel) and aluminium from Commission Implementing
-Regulation (EU) 2026/1412's Annex, and the flat 10% 2026 markup rate from
-IR 2025/2621 (which is sector-wide, not country/route-specific, so it is
-now filled in on every EmissionFactorSeed even though direct_ef on most of
-them is still None). The two YearParameterSeed fields remain None: real,
-quotable numbers exist for both (Directive 2003/87/EC Art. 10a(1a)'s CBAM
-factor, and two of 2026's four quarterly CBAM certificate prices), but
-using them raises questions outside this task's data-only scope (see
-docs/m7-source-verification.md) rather than a fetch failure, so they are
-left as documented placeholders pending a human decision.
+Replaced the 4 genuinely-unfixable pairings with real, populated, non-EU/
+non-EEA country/route combinations IR 2025/2621 actually publishes CN 7208
+(steel) / CN 7601 (aluminium) default values for:
+  - steel BF-BOF: Turkiye (was France) - CN 7208 row tagged "(C)"
+  - steel EAF_scrap: Azerbaijan (was France) - CN 7208 row tagged "(E)"
+  - aluminium primary_electrolysis: Bahrain (was Norway) - CN 7601 row
+    tagged "(K)"
+  - aluminium secondary_recycled: Tunisia (unchanged - it was the right
+    country all along; only Task 6's "no data" finding was wrong)
+steel EAF_DRI remains genuinely unfillable: no country in this regulation
+carries a "(D)"-tagged data row - this is not a per-country gap.
+See docs/m7-source-verification.md for the full fetch record, exact
+quotes, and citations (Task 6's original entries plus this task's
+additions and the Tunisia correction).
+
+The EU ETS benchmark values for hot metal (steel) and aluminium from
+Commission Implementing Regulation (EU) 2026/1412's Annex, and the flat
+10% 2026 markup rate from IR 2025/2621 (sector-wide, not country/route-
+specific), were already verified by Task 6 and are unchanged here.
+
+`YEAR_PARAMETER_SEEDS`'s `reference_certificate_price` for 2026 is now
+filled in as the average of the two 2026 quarterly CBAM certificate prices
+published so far (Q1 2026 = EUR 75.36, Q2 2026 = EUR 75.28 -> average
+EUR 75.32), re-verified directly against the raw HTML of the European
+Commission's official price page as of this session's date (2026-09-08);
+Q3 2026 (due 5 October 2026) and Q4 2026 (due 4 January 2027) table cells
+are still empty (`&nbsp;`) in the source, i.e. genuinely not published yet
+- not a fetch failure. `cbam_factor_year` remains `None` and is deliberately
+NOT touched by this task: Task 6 found a real, quotable Directive
+2003/87/EC Art. 10a(1a) figure (97.5% for 2026) that appears to run in the
+opposite direction from this codebase's pre-existing 0.025-for-2026
+convention - a `calc_engine.py` formula-direction question outside a
+data-only task's mandate (`calc_engine.py` must show zero changes here),
+still escalated to the human partner, unchanged by this task.
 
 Each still-`None` value below carries a comment explaining exactly why.
 seed_odoo() refuses to write to a real Odoo instance while any placeholder
@@ -99,95 +109,111 @@ EMISSION_FACTOR_SEEDS: List[EmissionFactorSeed] = [
     EmissionFactorSeed(
         sector="steel",
         route="BF-BOF",
-        country="FR",
-        direct_ef=None,  # BLOCKED: France is not a listed country in either
-        # source's steel tables (confirmed by exhaustive search of both the
-        # extracted JRC134682 text and IR 2025/2621's Annex I - "France"
-        # never appears except in an unrelated citation). CBAM default
-        # values only exist for non-EU countries of origin; France, as an
-        # EU member, never needs one. See docs/m7-source-verification.md
-        # for detail.
-        indirect_ef=0.0,  # Annex II: indirect not priced for steel, but tracked
+        country="TR",
+        direct_ef=2.428,  # VERIFIED: Commission Implementing Regulation (EU)
+        # 2025/2621, Annex I, Türkiye country block (extracted text line
+        # 107584-110671 of the re-fetched 135,102-line PDF text), CN 7208
+        # row: "7208 Flat-rolled products of iron or non-alloy steel, of a
+        # width >= 600 mm, hot-rolled, not clad, plated or coated 2,428 N/A
+        # 2,428 2,670 2,913 3,156 (C)" - direct default value 2.428 t
+        # CO2e/t, route tag (C) = "Carbon Steel based on BF/BOF", matching
+        # this record's route exactly. Replaces the earlier BF-BOF/FR
+        # pairing (France is an EU member, never a CBAM import origin).
+        indirect_ef=0.0,  # source row: indirect emissions default = "N/A"
         markup_pct=0.10,  # VERIFIED: Commission Implementing Regulation (EU)
         # 2025/2621, Annex I, "Iron and steel 10% mark-up 20% mark-up 30%
         # mark-up" header (2026/2027/2028-onwards columns) - confirmed
         # identical across every country block and in Annex IV; sector-wide,
         # not country- or route-specific.
-        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
+        source_document="Commission Implementing Regulation (EU) 2025/2621, Annex I, Türkiye country block, CN 7208 row (direct default value 2.428, route indicator (C) BF/BOF); markup_pct from the same Annex's sector-wide 'Iron and steel 10% mark-up' 2026 header - see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
         sector="steel",
         route="EAF_scrap",
-        country="FR",
-        direct_ef=None,  # BLOCKED: same reason as BF-BOF/FR above - France
-        # is not a listed country in either primary source.
-        indirect_ef=0.0,
+        country="AZ",
+        direct_ef=0.140,  # VERIFIED: Commission Implementing Regulation (EU)
+        # 2025/2621, Annex I, Azerbaijan country block (extracted text line
+        # 10075-13719), CN 7208 row: "7208 Flat-rolled products of iron or
+        # non-alloy steel, of a width >= 600 mm, hot-rolled, not clad,
+        # plated or coated 0,140 N/A 0,140 0,154 0,168 0,182 (E)" - direct
+        # default value 0.140 t CO2e/t, route tag (E) = "Carbon Steel based
+        # on Scrap/EAF", matching this record's route exactly. Same CN code
+        # (7208) as the BF-BOF/TR record above, for a clean apples-to-apples
+        # comparison. Replaces the earlier EAF_scrap/FR pairing (same
+        # out-of-scope reason as BF-BOF/FR).
+        indirect_ef=0.0,  # source row: indirect emissions default = "N/A"
         markup_pct=0.10,  # VERIFIED: same IR 2025/2621 Annex I "Iron and
         # steel 10% mark-up" line as above.
-        source_document="BLOCKED: no France entry in JRC134682 or IR 2025/2621 Annex I (EU member, out of CBAM scope) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
+        source_document="Commission Implementing Regulation (EU) 2025/2621, Annex I, Azerbaijan country block, CN 7208 row (direct default value 0.140, route indicator (E) Scrap/EAF); markup_pct from the same Annex's sector-wide 'Iron and steel 10% mark-up' 2026 header - see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
         sector="steel",
         route="EAF_DRI",
         country="TR",
-        direct_ef=None,  # BLOCKED: IR 2025/2621's Annex I legend defines a
-        # "(D) Carbon Steel based on DRI/EAF" route indicator, but an
-        # exhaustive count across the entire ~2,400-page Annex I found it
-        # attached to zero actual data rows for any country - Turkiye's own
-        # CN 7208 entry (2,428 direct) and every other steel CN code for
-        # Turkiye is tagged "(C) BF/BOF" instead. JRC134682 only gives
-        # Turkiye one blended per-CN-code value (its Step 3 methodology
-        # explicitly says route-decomposed values exist only for the
-        # "weighted average" of out-of-scope countries, not named
-        # countries like Turkiye). No clean DRI/EAF-route figure exists
-        # for Turkiye in either source.
+        direct_ef=None,  # BLOCKED (re-confirmed, Task 9): IR 2025/2621's
+        # Annex I legend defines a "(D) Carbon Steel based on DRI/EAF" route
+        # indicator, but re-fetching and re-counting against this task's own
+        # freshly-downloaded copy of the PDF (confirmed byte-identical to
+        # Task 6's: 41,252,987 bytes, 135,102 extracted lines) found the
+        # exact same result: `grep -cF "(D)"` across the whole document = 2,
+        # both the legend definitions themselves (Annex I's intro, Annex
+        # IV's copy) - never attached to a single actual data row, for
+        # Turkiye or any other of the ~170 countries in the Annex. This is
+        # not a per-country gap - no country's steel data anywhere in this
+        # regulation carries a DRI/EAF route tag, so there is no country to
+        # substitute in for this specific route. JRC134682 (checked by Task
+        # 6 as a second source) likewise only gives Turkiye a single blended
+        # per-CN-code value, not a route-decomposed one.
         indirect_ef=0.0,
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Iron and steel
         # 10% mark-up" line - confirmed for Turkiye's own country block too.
-        source_document="BLOCKED: DRI/EAF route indicator (D) is defined in IR 2025/2621's legend but used in zero data rows anywhere in the regulation; JRC134682 gives Turkiye only a blended (not route-specific) value - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
+        source_document="BLOCKED: DRI/EAF route indicator (D) is defined in IR 2025/2621's legend but used in zero data rows anywhere in the regulation, for any country (re-confirmed Task 9 against a freshly re-fetched, byte-identical copy of the PDF); JRC134682 gives Turkiye only a blended (not route-specific) value - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
         sector="aluminium",
         route="primary_electrolysis",
-        country="NO",
-        direct_ef=None,  # BLOCKED: Norway is not listed in IR 2025/2621's
-        # Annex I at all, and JRC134682 states outright (section 4.1):
-        # "Norway and Iceland form part of the EU ETS and are therefore
-        # not affected by the CBAM" - Norway is legally out of CBAM's
-        # scope, not merely missing data. (JRC134682's own Annex 2 table
-        # does list a blended Norway/CN 7601 figure - Direct 1.84, Indirect
-        # 0.13, Total 1.97 tCO2e/t - but using it would misattribute a
-        # country-blended number as a pure "primary electrolysis route"
-        # figure from a country the report itself says CBAM doesn't cover.)
-        indirect_ef=0.0,
+        country="BH",
+        direct_ef=1.870,  # VERIFIED: Commission Implementing Regulation (EU)
+        # 2025/2621, Annex I, Bahrain country block (extracted text line
+        # 13720-13903), CN 7601 row: "7601 Unwrought aluminium 1,870 N/A
+        # 1,870 2,057 2,244 2,431 (K)" - direct default value 1.870
+        # t CO2e/t, route tag (K) = "primary Aluminium", matching this
+        # record's route exactly. Bahrain is one of JRC134682's own named
+        # 15-country aluminium scope (section 4.1) and a real-world major
+        # primary-aluminium exporter (Aluminium Bahrain/Alba). Replaces the
+        # earlier primary_electrolysis/NO pairing (Norway is an EU-ETS
+        # member, out of CBAM's scope per JRC134682 section 4.1).
+        indirect_ef=0.0,  # source row: indirect emissions default = "N/A"
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Aluminium 10%
         # mark-up" line - sector-wide, applies regardless of country/route.
-        source_document="BLOCKED: Norway is out of CBAM's scope entirely (EU ETS member per JRC134682 section 4.1), not listed in IR 2025/2621 Annex I - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
+        source_document="Commission Implementing Regulation (EU) 2025/2621, Annex I, Bahrain country block, CN 7601 row (direct default value 1.870, route indicator (K) primary Aluminium); markup_pct from the same Annex's sector-wide 'Aluminium 10% mark-up' 2026 header - see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
     EmissionFactorSeed(
         sector="aluminium",
         route="secondary_recycled",
         country="TN",
-        direct_ef=None,  # BLOCKED: Tunisia does not appear in either
-        # source's aluminium per-country tables (JRC134682's 15-country
-        # aluminium scope requires >=1% EU import share; IR 2025/2621's
-        # Annex I never names Tunisia for steel/aluminium either - only in
-        # its fertiliser/cement sections and in Annex II/III's electricity
-        # grid tables, which are for indirect emissions, not needed here).
-        # Tunisia's applicable default, per IR 2025/2621's own Annex I rule,
-        # would be its "Other Countries and Territories" catch-all - found
-        # and checked (CN 7601: direct 2.203 tCO2/t) - but that row is
-        # tagged "(K) primary Aluminium", not "(L) secondary", so it cannot
-        # honestly stand in for a secondary_recycled figure.
-        indirect_ef=0.0,
+        direct_ef=0.360,  # VERIFIED (Task 9 correction of a Task 6 miss):
+        # Commission Implementing Regulation (EU) 2025/2621, Annex I,
+        # Tunisia's own country block (extracted text line 107001-107583)
+        # *does* carry a CN 7601 row: "7601 Unwrought aluminium 0,360 N/A
+        # 0,360 0,396 0,432 0,468 (L)" - direct default value 0.360
+        # t CO2e/t, route tag (L) = "secondary Aluminium", matching this
+        # record's route exactly. Task 6 had concluded Tunisia had no
+        # aluminium entry at all (only fertiliser/cement); re-fetching and
+        # re-reading Tunisia's block in full for this task found that
+        # conclusion was wrong - the row was there, just missed. Tunisia
+        # has no steel (CN 72xx) rows in this regulation at all, so the
+        # steel side of Tunisia's absence (Task 6's other finding) still
+        # stands; only the aluminium/secondary_recycled pairing changes.
+        indirect_ef=0.0,  # source row: indirect emissions default = "N/A"
         markup_pct=0.10,  # VERIFIED: IR 2025/2621 Annex I, "Aluminium 10%
-        # mark-up" line - same sector-wide rate, confirmed in the "Other
-        # Countries and Territories" table too.
-        source_document="BLOCKED: Tunisia absent from both sources' aluminium tables; IR 2025/2621's 'Other Countries and Territories' fallback for CN 7601 is tagged primary (K), not secondary (L) - markup_pct verified from IR 2025/2621 Annex I; direct_ef still None, see docs/m7-source-verification.md",
+        # mark-up" line - same sector-wide rate, confirmed in Tunisia's own
+        # country block too.
+        source_document="Commission Implementing Regulation (EU) 2025/2621, Annex I, Tunisia country block, CN 7601 row (direct default value 0.360, route indicator (L) secondary Aluminium); markup_pct from the same Annex's sector-wide 'Aluminium 10% mark-up' 2026 header - see docs/m7-source-verification.md",
         valid_from=date(2026, 1, 1),
     ),
 ]
@@ -217,22 +243,23 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
         # pre-existing convention/tests) is a formula-direction question
         # outside this task's data-only scope ("do not touch the
         # mechanism") - escalated in docs/m7-source-verification.md rather than guessed.
-        reference_certificate_price=None,  # BLOCKED (partial - real numbers
-        # exist but don't reduce to one 2026 figure): the European
-        # Commission's official page (taxation-customs.ec.europa.eu/
-        # carbon-border-adjustment-mechanism/price-cbam-certificates_en)
-        # states "In 2026, the Commission will calculate and publish four
-        # quarterly prices, one for each calendar quarter" and gives, as of
-        # this session's date (2026-09-08): Q1 2026 = EUR 75,36 (published
-        # 7 April 2026), Q2 2026 = EUR 75,28 (published 6 July 2026); Q3
-        # 2026 (due 5 October 2026) and Q4 2026 (due 4 January 2027) are
-        # not yet published. The cbam.year.parameter model holds one
-        # reference_certificate_price per year (unique-constrained on
-        # year, per docs/PROGRESS.md), which cannot represent a value that
-        # is genuinely quarterly (and still incomplete) for 2026 without
-        # picking one quarter or an average - a modelling decision, not a
-        # data lookup, so left for the human partner (see docs/m7-source-verification.md).
-        source_document="BLOCKED: real primary figures found (Dir. 2003/87/EC Art. 10a(1a) CBAM factor; EC quarterly CBAM certificate prices) but each raises a scope question outside this task's data-only mandate - see docs/m7-source-verification.md",
+        reference_certificate_price=75.32,  # VERIFIED (Task 9, resolves the
+        # gap Task 6 escalated): average of the 2026 quarterly CBAM
+        # certificate prices published so far on the European Commission's
+        # official page (taxation-customs.ec.europa.eu/carbon-border-
+        # adjustment-mechanism/price-cbam-certificates_en), re-fetched and
+        # re-checked directly against the page's raw HTML table cells for
+        # this task (2026-09-08): Q1 2026 = EUR 75.36 (published 7 April
+        # 2026, table cell "75,36"), Q2 2026 = EUR 75.28 (published 6 July
+        # 2026, table cell "75,28"). Q3 2026 (due 5 October 2026) and Q4
+        # 2026 (due 4 January 2027) table cells are still empty ("&nbsp;")
+        # in the source - genuinely not published yet, not a fetch failure -
+        # so this average uses only the 2 quarters currently published:
+        # (75.36 + 75.28) / 2 = 75.32. This is an APPROXIMATION, not a
+        # single official annual figure (there isn't one for 2026 - the
+        # mechanism is explicitly quarterly this year) - re-average once Q3
+        # and/or Q4 publish.
+        source_document="Average of 2026 Q1 (EUR 75.36, published 7 April 2026) and Q2 (EUR 75.28, published 6 July 2026) CBAM certificate prices, the only 2026 quarters published as of 2026-09-08, per the European Commission's official price page (taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/price-cbam-certificates_en); Q3/Q4 2026 not yet published - this is an average of published quarterly figures, not a single official annual price - see docs/m7-source-verification.md. cbam_factor_year remains unresolved (out of this task's scope - see comment above and docs/m7-source-verification.md)",
     ),
 ]
 
