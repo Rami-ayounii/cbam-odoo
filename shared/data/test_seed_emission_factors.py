@@ -46,13 +46,27 @@ def test_every_seed_has_a_source_document_citation():
         assert seed.source_document, f"{seed} has no source_document citation"
 
 
-def test_find_incomplete_seeds_flags_all_current_placeholders():
-    # As of this writing every seed value is an unverified placeholder -
-    # this test documents that state and will start failing (usefully) the
-    # moment real numbers are filled in, prompting an update here too.
+def test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields():
+    # M7 (2026-09-08 re-attempt): the two GoodBenchmarkSeed records (steel
+    # CN 7208, aluminium CN 7601) and markup_pct on every EmissionFactorSeed
+    # got real, cited values (Commission Implementing Regulation (EU)
+    # 2026/1412's benchmarks; IR 2025/2621's flat 10% 2026 markup rate) -
+    # see task-6-report.md. direct_ef on all five EmissionFactorSeed
+    # records, and both YearParameterSeed fields, are still genuinely
+    # blocked (not merely unattempted - each has a documented, cited reason
+    # in seed_emission_factors.py). This test names exactly those and will
+    # start failing (usefully) the moment any of them is filled in, or if a
+    # regression drops something that was already verified.
     incomplete = find_incomplete_seeds()
-    assert len(incomplete) > 0
-    assert all(isinstance(item, str) for item in incomplete)
+    assert incomplete == [
+        "emission_factor steel/BF-BOF/FR: direct_ef",
+        "emission_factor steel/EAF_scrap/FR: direct_ef",
+        "emission_factor steel/EAF_DRI/TR: direct_ef",
+        "emission_factor aluminium/primary_electrolysis/NO: direct_ef",
+        "emission_factor aluminium/secondary_recycled/TN: direct_ef",
+        "year_parameter 2026: cbam_factor_year",
+        "year_parameter 2026: reference_certificate_price",
+    ]
 
 
 def test_seed_odoo_refuses_to_write_incomplete_data_by_default():
