@@ -18,7 +18,7 @@
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); the audit follow-up below also gave `cbam.good.benchmark` a real route dimension, honestly leaving 2 route-specific benchmark values blocked rather than silently wrong — `find_incomplete_seeds()` now returns 3 items, see "Independent audit + follow-up fixes" section | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
-| M9 — Evaluation | **Done, real run, now with non-zero accuracy** — 17/20 completed, 3/20 escalated, 0% field accuracy originally; see Agentic completion-gap follow-up (re-run), Field-accuracy root-cause investigation (two real bugs fixed, still 0%, confirmed a real llama3.1:8b tool-calling reliability ceiling), then MVP-focused follow-up section — shrinking the tool schemas to only what the model actually decides (plus an independent dev-fixture bug fix) got 6/6 completed, 0/6 escalated/exhausted, and the first-ever non-zero field accuracy (33% on 4 of 6 fields; the 2 fields still requiring real extraction from document text stay at 0%) | `ceaf01c` |
+| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy originally; a long sequence of real, live-verified fixes (Agentic completion-gap follow-up, Field-accuracy root-cause investigation, MVP-focused follow-up, Real production-path verification, Value-carryover/temperature fix, Closing the actual-sourced extraction gap, Remembered-value carryover) got two specific hand-picked records to 3/3-correct, fully reproducible, real end-to-end writes — **but see "The honest broader-sample check" section: a small, genuinely unselected 5-record batch still scored 0/5**, confirming the underlying llama3.1:8b tool-calling reliability ceiling (M4's 50% valid-call rate) remains the dominant factor at scale. Mechanism demonstrably correct when the model cooperates; not yet reliable in general - a full 20+ record run is the concrete next step, still blocked by this machine's RAM | `ceaf01c` |
 
 ---
 
@@ -1403,6 +1403,67 @@ manufacture a value the model never derived at all. A broader-sample
 re-run (the full 20-record M9 harness, still blocked tonight by this
 machine's available RAM) would be the honest next check before generalizing
 this result beyond the two live samples taken here.
+
+---
+
+## The honest broader-sample check (2026-09-09)
+
+Did exactly the check the section above flagged as needed. A full
+20-record run was attempted first and killed by the OS for low memory
+(same failure as the first attempt in the field-accuracy investigation
+section) - this machine's WSL2/Docker memory footprint had grown further
+overnight (Ollama's own container RAM had ballooned to 5.1 GB of its 7.3 GB
+limit after ~23h uptime, a real, if unsurprising, resource-accumulation
+issue, not a code bug). Restarting the `ollama` and `nginx` containers to
+reclaim memory hit the same deleted-worktree bind-mount problem documented
+in the "Real production-path verification" section (this time for
+`nginx`, previously `orchestrator`/`odoo`) - recreated `nginx` pointing at
+the current checkout the same way. Free memory kept falling regardless
+(553 MB, then 536 MB), so rather than force a `wsl --shutdown` (disruptive
+to the human partner's entire WSL2 environment, not just this project),
+the human partner chose to run a smaller, still-genuinely-unselected batch
+instead of the full 20.
+
+**Result (`docs/evaluation-broader-sample-2026-09-09.md`, 5 records,
+first 5 in numeric order - not hand-picked): 0/5 correct, including
+`quantity_tonnes`/`data_source`**, which are unconditionally correct
+whenever any real write happens (dispatcher-injected from ground truth,
+never model-supplied). Their being wrong means no record in this small
+batch ever reached a real `write_declaration_line` call - 1 `completed`
+(possibly a silent stop, not necessarily a write - a known ambiguity),
+3 `escalated`, 1 `exhausted`.
+
+**This is the honest, sobering counterweight to the two sections above.**
+Both things are true at once, and neither cancels the other:
+
+- The specific, diagnosed failure modes this session fixed are real and
+  independently verified live: missing `document_id` (field-accuracy
+  investigation), excess required fields the model reliably dropped
+  (MVP-focused follow-up), the `data_source="default"` constraint that
+  made an entire code path unreachable, unset sampling temperature, and
+  value carryover between the model's own tool calls (both sections
+  above) - each demonstrated with a real before/after live trace, not
+  assumed.
+- None of that adds up to a *reliable* model. A small, genuinely
+  unselected sample (5 records, not the 2 specific ones this session
+  happened to hand-verify) shows the underlying `llama3.1:8b` tool-calling
+  ceiling from M4's original benchmark (50% valid-call rate, the *best*
+  of 4 candidates tried) is still the dominant factor in whether any given
+  job completes correctly at all.
+
+**Conclusion for anyone picking this up next:** this session's fixes were
+worth making - they removed real, structural bugs that had nothing to do
+with model capability (a constraint that made a whole data path
+impossible, a temperature nobody had set, tool schemas asking for facts
+the orchestrator already had) - but they are not a substitute for a more
+reliable model. The honest framing for any write-up of this project: the
+mechanism is now demonstrably correct when the model cooperates: unproven
+at scale is where this stands, not "solved." A full 20-record run (or
+larger) on a machine with more headroom - or benchmarking a model M4 never
+tried - remains the concrete next step for anyone who wants a real,
+statistically meaningful accuracy number rather than either of this
+session's two anecdotes (the encouraging hand-picked ones, or this
+section's discouraging unselected one).
 
 ---
 
