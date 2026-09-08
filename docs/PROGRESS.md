@@ -11,12 +11,12 @@
 |-----------|--------|--------|
 | M0 — Repo scaffold & networking | **Done** | `16ec5ec` |
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
-| M2 — Calculation engine | **Done** | `2d89d37` |
+| M2 — Calculation engine | **Done** (certificate formula corrected later, see commit `db50c1f`) | `2d89d37` |
 | M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
-| M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Done, real data seeded (EAF_DRI `direct_ef` genuinely unavailable)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; only steel EAF_DRI's `direct_ef` stays blocked, structurally absent from the source (not a fetch failure) | `2a4deec`, `c35dbbe`, `4923a9e` |
+| M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) | `b1a7d17` |
+| M7 — Versioned emission factor data load | **Done, real data resolved (9/10 fields; not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; only steel EAF_DRI's `direct_ef` stays blocked, structurally absent from the source (not a fetch failure) | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
 
@@ -102,8 +102,13 @@ calculate_certificates_required(
     carbon_price_paid_origin: float,    # EUR/t CO2e paid in exporting country
     reference_certificate_price: float, # EUR/t CO2e, reference CBAM certificate price
 ) -> float
-# N = max(embedded_emissions_total - benchmark*cbam_factor_year*quantity_tonnes, 0)
+# N = max(embedded_emissions_total - benchmark*(1-cbam_factor_year)*quantity_tonnes, 0)
 # N_final = N * (1 - min(carbon_price_paid_origin / reference_certificate_price, 1.0)), never negative
+#
+# NOTE: a sign-inversion bug in this formula (it originally read
+# benchmark*cbam_factor_year*quantity_tonnes, without the (1 - ...)
+# complement) was found and fixed later on this branch, commit `db50c1f`.
+# See the M7 section below (Task 11 paragraph) for the full explanation.
 
 lookup_emission_factor(sector, route, country, declaration_date, db_session) -> EmissionFactor
 # db_session duck-types get_emission_factors(sector, route, country); picks the one record where
@@ -127,8 +132,9 @@ those only get baked into real records in M7):
 - Versioned lookup: two non-overlapping date ranges (picks correct record either side of the
   transition date), no match raises `ValueError`, overlapping records raise `ValueError`
 
-**Done:** `pytest machineB/tests/test_calc_engine.py -v` → 15 passed, built test-first (RED confirmed
-via `ModuleNotFoundError` before `calc_engine.py` existed, then GREEN).
+**Done:** `pytest machineB/tests/test_calc_engine.py -v` → 20 passed (15 built test-first here, RED
+confirmed via `ModuleNotFoundError` before `calc_engine.py` existed, then GREEN; 5 more added later by
+Task 8 alongside the sign-inversion fix above).
 
 **Not done yet:** committed in `2d89d37`; `benchmark`, `cbam_factor_year`, and
 `reference_certificate_price` still need a real source (JRC/EU ETS benchmark decisions, the phase-out
@@ -392,6 +398,33 @@ field after Task 11:**
   per-country gap - no country anywhere in either source has DRI/EAF-route
   data, so there is no substitute country to swap in for this route.
 
+**Known gap: `GoodBenchmarkSeed` has no route dimension, so two of the
+newly-populated route/country pairings currently compute to exactly zero
+certificates.** `GoodBenchmarkSeed` (`shared/data/seed_emission_factors.py`)
+keys its benchmark only on `(cn_code, sector)`, not route, so the single
+CN 7208 (steel) and CN 7601 (aluminium) benchmarks are applied uniformly to
+every `EmissionFactorSeed` record for that CN code regardless of production
+route. The CN 7601 benchmark specifically represents PRIMARY/electrolytic
+aluminium production (per its source citation). This was flagged as a
+caveat during Task 6 (before `secondary_recycled`'s `direct_ef` had any real
+value to test it against) but never written down in any committed file.
+Task 9 then filled in real `direct_ef` values for `steel EAF_scrap/AZ` and
+`aluminium secondary_recycled/TN` - and running both through the current
+(post-`db50c1f`) `calc_engine.py` for Q=100t shows the caveat's consequence
+is real, not theoretical: **both pairings compute to exactly zero
+certificates required** - `steel EAF_scrap/AZ` because the hot-metal
+BF-BOF benchmark (1.248) is wrongly applied to a scrap-EAF route record, and
+`aluminium secondary_recycled/TN` because the primary-aluminium benchmark
+(1.423) is wrongly applied to a secondary/recycled route record. In both
+cases the benchmark deduction overstates the free allocation the route
+actually qualifies for, driving the certificate requirement down to the
+formula's floor of zero. This is a data-model gap, not an arithmetic bug -
+fixing it properly needs a route dimension added to `GoodBenchmarkSeed`
+(a schema/design change), which is out of scope for this plan. Documented
+inline in `shared/data/seed_emission_factors.py` (comments on both
+`GoodBenchmarkSeed` records) and cross-referenced in
+`docs/m7-source-verification.md`.
+
 **Existing files, unchanged in shape:**
 - `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). The one still-`None` field carries a comment citing the exact primary-source finding that blocks it (see above); every filled-in field carries a comment citing the exact source row it came from.
 - `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 1 item (`steel/EAF_DRI/TR: direct_ef`) instead of the 2 it returned after Task 9.
@@ -564,7 +597,11 @@ byte-for-byte) + Postgres + Odoo + orchestrator — reaching each other over
 `machineB/docker-compose.yml` are unmodified and remain the real deployment
 topology for when Machine B is available. Full rationale in
 `docs/superpowers/specs/2026-09-06-m4-live-infra-design.md`'s "Non-goals" and
-"Approach" sections. A follow-up session (Task 7, 2026-09-08) attempted to close this deviation but found Tailscale still not installed on the available host; the human partner chose to defer real-mesh verification rather than provision it now, leaving the local-dev stand-in as the tested topology until that changes.
+"Approach" sections. A follow-up session (Task 7, 2026-09-08) attempted to
+close this deviation but found Tailscale still not installed on the
+available host; the human partner chose to defer real-mesh verification
+rather than provision it now, leaving the local-dev stand-in as the tested
+topology until that changes.
 
 **M4 — real model benchmark (commit `9d4851a`):** 4 candidate models
 benchmarked for real against a live local `ollama serve`, 10 tool-calling

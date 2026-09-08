@@ -269,6 +269,17 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
 ]
 
 GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
+    # KNOWN LIMITATION (documented, not a bug in the arithmetic): GoodBenchmarkSeed
+    # keys only on (cn_code, sector), with no route dimension, so the single benchmark
+    # below is applied uniformly to every EmissionFactorSeed record for this CN code
+    # regardless of production route. For CN 7208 (steel) this benchmark represents
+    # hot-metal BF-BOF production per its source citation below; applying it to a
+    # scrap-EAF route record (e.g. the steel EAF_scrap/AZ record) understates the true
+    # benchmark deduction for that route and will compute an artificially low (possibly
+    # zero) certificate requirement. See docs/PROGRESS.md's M7 section and
+    # docs/m7-source-verification.md for the concrete numeric consequence and why a real
+    # fix needs a route dimension added to GoodBenchmarkSeed (a schema change, out of
+    # scope for this plan).
     GoodBenchmarkSeed(
         cn_code="7208",
         sector="steel",
@@ -286,6 +297,17 @@ GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
         # mention ("hot metal falls to 1.248 tCO2e per tonne").
         source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 1, 'Hot metal' row, benchmark value (allowances/t) for 2026-2030",
     ),
+    # KNOWN LIMITATION (documented, not a bug in the arithmetic): same no-route-dimension
+    # gap as CN 7208 above. This CN 7601 benchmark specifically represents
+    # PRIMARY/electrolytic aluminium production per its source citation below (the
+    # Annex's "Aluminium" benchmark row). Applying it to the secondary_recycled route
+    # (e.g. the aluminium secondary_recycled/TN record) is wrong: secondary/recycled
+    # aluminium's real-world emissions intensity is far lower than primary, so this
+    # benchmark overstates the free-allocation deduction and computes an artificially
+    # low - here, exactly zero - certificate requirement for that record. A real fix
+    # needs a route dimension added to GoodBenchmarkSeed (a schema change, out of scope
+    # for this plan); see docs/PROGRESS.md's M7 section and
+    # docs/m7-source-verification.md for the concrete numeric consequence.
     GoodBenchmarkSeed(
         cn_code="7601",
         sector="aluminium",

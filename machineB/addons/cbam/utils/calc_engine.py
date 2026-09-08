@@ -115,13 +115,19 @@ def calculate_certificates_required(
     N_final = N * (1 - carbon_price_adjustment_fraction)
 
     CBAMFactor_year is the CBAM phase-in percentage for the reporting year
-    (2.5% for 2026, rising to 100% by 2034, per Reg. (EU) 2023/956 Art. 31)
-    - it represents how much of the benchmark-based free-allocation
+    (2.5% for 2026, rising to 100% by 2034, per Directive 2003/87/EC Art.
+    10a(1a)) - it represents how much of the benchmark-based free-allocation
     equivalent has been PHASED OUT, so (1 - CBAMFactor_year) is the
     fraction STILL deducted: a small CBAMFactor_year (early years) means a
     LARGE deduction and a correspondingly light certificate burden,
     growing to a full deduction of zero (full certificate burden) once
     CBAMFactor_year reaches 100% in 2034.
+    NOTE: this module's cbam_factor_year field/argument stores the
+    COMPLEMENT of the Directive's literal "CBAM factor" figure (the phased-
+    out fraction, e.g. 0.025 for 2026), not the retained-allocation fraction
+    the Directive itself states (97.5% for 2026) - so a reader who looks up
+    Art. 10a(1a) and finds 97.5% should not conclude this code is wrong; see
+    docs/m7-source-verification.md for the full derivation.
 
     carbon_price_adjustment_fraction is the verified carbon price already
     paid in the country of production, expressed as a fraction of the

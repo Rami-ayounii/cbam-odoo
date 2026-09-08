@@ -163,6 +163,11 @@ codebase's existing fraction convention (`0.10` = 10%, confirmed against
 
 ### 4. `direct_ef` for steel BF-BOF/FR and steel EAF_scrap/FR
 
+**SUPERSEDED by the Task 9 addendum below** - the France pairings were
+replaced with Türkiye (BF-BOF) and Azerbaijan (EAF_scrap), which do have
+real published data. The France-has-no-data finding below is still
+historically accurate; it's just no longer the fixture's active state.
+
 **Finding: France is not a country either primary source has data for.**
 `grep -n '^France$'` against the full 135,102-line extracted IR 2025/2621
 text returned zero matches. A broader search of the whole document for the
@@ -246,6 +251,11 @@ in either source to quote.
 
 ### 6. `direct_ef` for aluminium primary_electrolysis/NO
 
+**SUPERSEDED by the Task 9 addendum below** - the Norway pairing was
+replaced with Bahrain, which does have real published data. The
+Norway-is-out-of-scope finding below is still historically accurate; it's
+just no longer the fixture's active state.
+
 **Finding: Norway is outside CBAM's scope entirely, not merely missing
 data.** IR 2025/2621's Annex I has no Norway entry for aluminium (`grep -n
 '^Norway$'` returned zero matches; Norway does appear as a named country
@@ -282,6 +292,13 @@ what the number is and whether it's needed at all.
 **Not filled in.**
 
 ### 7. `direct_ef` for aluminium secondary_recycled/TN
+
+**SUPERSEDED by the Task 9 addendum below** - the "Tunisia is absent"
+finding below turned out to be wrong (a `grep '^Tunisia$'` anchoring
+artifact, not a real data gap); Tunisia does have real published
+`secondary_recycled` data and the country pairing was kept, just corrected.
+See the Task 9 addendum's "Correction: Tunisia's aluminium data was not
+actually absent" section for the real, resolved value.
 
 **Finding: Tunisia is absent from both sources' aluminium tables, and its
 regulatory fallback doesn't match the requested route.** JRC134682's
@@ -479,6 +496,19 @@ Within that block, at line 107460:
   needs exactly, for the exact country (Tunisia) the original fixture
   guessed at. No substitution needed after all.
 
+**Known gap (see `docs/PROGRESS.md`'s M7 section for the full writeup):**
+`GoodBenchmarkSeed` has no route dimension, so the CN 7601 benchmark used
+for certificate calculations (1.423, PRIMARY/electrolytic aluminium per its
+own source citation) gets applied uniformly to this `secondary_recycled`
+record too - even though secondary/recycled aluminium's real emissions
+intensity is far lower than primary. Running this record through
+`calc_engine.py` at Q=100t computes exactly zero certificates required, for
+the same structural reason as the steel EAF_scrap/AZ record above.
+Documented inline in `shared/data/seed_emission_factors.py`'s
+`GoodBenchmarkSeed` comments; not a bug in this record's `direct_ef` value
+itself, and a real fix needs a route dimension added to `GoodBenchmarkSeed`
+(out of scope for this plan).
+
 A plausible explanation for the earlier miss: an anchored `grep -n
 '^Tunisia$'` search (the same style used to correctly find zero matches for
 `^France$` and `^Norway$`) can fail to match a "clean-looking" country
@@ -544,6 +574,16 @@ hot-rolled, not clad, plated or coated
 
 `EmissionFactorSeed(sector="steel", route="EAF_scrap", country="AZ",
 direct_ef=0.140, ...)`.
+
+**Known gap (see `docs/PROGRESS.md`'s M7 section for the full writeup):**
+`GoodBenchmarkSeed` has no route dimension, so the CN 7208 benchmark used
+for certificate calculations (1.248, hot-metal BF-BOF per its own source
+citation) gets applied uniformly to this `EAF_scrap` record too. Running
+this record through `calc_engine.py` at Q=100t computes exactly zero
+certificates required - the benchmark deduction, sized for BF-BOF, exceeds
+this route's real embedded emissions. Documented inline in
+`shared/data/seed_emission_factors.py`'s `GoodBenchmarkSeed` comments; not
+a bug in this record's `direct_ef` value itself.
 
 ### Field 6 (aluminium primary_electrolysis) resolved: Bahrain replaces Norway
 
