@@ -579,7 +579,7 @@ byte-for-byte) + Postgres + Odoo + orchestrator — reaching each other over
 `machineB/docker-compose.yml` are unmodified and remain the real deployment
 topology for when Machine B is available. Full rationale in
 `docs/superpowers/specs/2026-09-06-m4-live-infra-design.md`'s "Non-goals" and
-"Approach" sections.
+"Approach" sections. A follow-up session (Task 7, 2026-09-08) attempted to close this deviation but found Tailscale still not installed on the available host; the human partner chose to defer real-mesh verification rather than provision it now, leaving the local-dev stand-in as the tested topology until that changes.
 
 **M4 — real model benchmark (commit `9d4851a`):** 4 candidate models
 benchmarked for real against a live local `ollama serve`, 10 tool-calling
