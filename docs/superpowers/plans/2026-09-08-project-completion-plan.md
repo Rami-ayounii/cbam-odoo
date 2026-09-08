@@ -853,6 +853,259 @@ EOF
 
 ---
 
+## Tasks 8-10: added mid-execution, per the human partner's decisions on Task 6/7's escalated findings
+
+Task 6's live execution surfaced a likely sign-inversion bug in `calc_engine.py`'s certificate formula and a country/route mismatch in the M7 fixture design; Task 7 blocked immediately on a missing Tailscale install. All three were escalated rather than guessed at, per the plan's own rule. The human partner's decisions:
+1. The formula is confirmed inverted — fix it.
+2. Redo the fixture country/route selection with real, populated data.
+3. Average the published 2026 quarterly certificate prices with a documented caveat.
+4. Defer Task 7 (Tailscale) for now — document the blocker, do not attempt a workaround.
+
+### Task 8: Fix the inverted `cbam_factor_year` direction in `calculate_certificates_required`
+
+**Files:**
+- Modify: `machineB/addons/cbam/utils/calc_engine.py`
+- Modify: `machineB/tests/test_calc_engine.py`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: no signature change to `calculate_certificates_required` — only its internal formula changes. `cbam_declaration_line.py`'s computed `certificates_required` field calls this function directly with no duplicated logic, so it inherits the fix automatically; no Odoo-model file needs editing.
+
+**The bug:** `calculate_certificates_required`'s `benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes` uses `cbam_factor_year` directly as the deduction fraction. But `cbam_factor_year` is seeded as the CBAM phase-in percentage that STARTS SMALL (2.5% in 2026) and grows to 100% by 2034 (see `shared/data/dev_fixtures.py`'s `DEV_YEAR_PARAMETER_FIXTURE` and `shared/data/seed_emission_factors.py`'s `YearParameterSeed` comment, both already correctly documenting 2.5% for 2026 — the SEED VALUES are correct, only the FORMULA is wrong). As coded, a small `cbam_factor_year` produces a small deduction, meaning an importer owes certificates for nearly their FULL embedded emissions from year one — the opposite of CBAM's intended gentle-then-ramping phase-in (light burden in 2026, full burden by 2034). The deduction should represent how much of the benchmark-based free-allocation-equivalent STILL applies, which is `(1 - cbam_factor_year)`, not `cbam_factor_year` itself.
+
+- [ ] **Step 1: Write the failing tests**
+
+Two of the five existing certificate tests need their inputs updated because they happen not to distinguish the two formulas (a self-symmetric 0.5, or values that only work by coincidence under the old formula) — this is expected, not scope creep, since the fix changes what "high" and "low" `cbam_factor_year` mean. Replace `machineB/tests/test_calc_engine.py`'s existing `test_certificates_benchmark_deduction_applied` and `test_certificates_never_negative_when_benchmark_deduction_exceeds_total` with these three tests (two revised, one new):
+
+```python
+def test_certificates_benchmark_deduction_applied():
+    # Under the corrected formula, benchmark_deduction = benchmark * (1 -
+    # cbam_factor_year) * quantity. cbam_factor_year=0.3 -> 70% of the
+    # benchmark-based free-allocation-equivalent still applies:
+    # deduction = 1.0 * 0.7 * 100 = 70
+    result = calculate_certificates_required(
+        embedded_emissions_total=200.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=0.3,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    assert result == pytest.approx(130.0)
+
+
+def test_certificates_never_negative_when_benchmark_deduction_exceeds_total():
+    # cbam_factor_year=0.0 in the corrected formula means the FULL
+    # benchmark-based free-allocation-equivalent still applies (deduction =
+    # benchmark * 1.0 * quantity), which can exceed total embedded
+    # emissions - result must floor at 0, never go negative.
+    result = calculate_certificates_required(
+        embedded_emissions_total=50.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=0.0,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    assert result == pytest.approx(0.0)
+
+
+def test_certificates_low_year_factor_means_gentle_phase_in_burden():
+    # This is the fix's whole point: a LOW cbam_factor_year (early
+    # transition years, e.g. 2.5% for 2026) must produce a LOWER
+    # certificate burden than a HIGH cbam_factor_year (e.g. 100% by 2034)
+    # for the same emissions/benchmark/quantity - the phase-in must get
+    # more expensive over time, never less.
+    early_transition = calculate_certificates_required(
+        embedded_emissions_total=200.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=0.025,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    full_phase_out = calculate_certificates_required(
+        embedded_emissions_total=200.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=1.0,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    assert early_transition == pytest.approx(102.5)
+    assert full_phase_out == pytest.approx(200.0)
+    assert early_transition < full_phase_out
+```
+
+Leave every other existing test in `test_calc_engine.py` untouched — `test_certificates_no_benchmark_no_price_adjustment` (`benchmark=0.0`, so the deduction term is zero either way), `test_certificates_carbon_price_paid_reduces_result_proportionally` and `test_certificates_price_adjustment_capped_at_full_deduction` and `test_certificates_negative_carbon_price_paid_does_not_inflate_result` (all use `benchmark=0.0`/`cbam_factor_year=0.0` purely to isolate the price-adjustment logic this fix doesn't touch) are all unaffected by this change and must keep passing with zero edits.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `python -m pytest machineB/tests/test_calc_engine.py -v -k "benchmark_deduction_applied or exceeds_total or gentle_phase_in"`
+Expected: `test_certificates_benchmark_deduction_applied` FAILS (currently returns 130.0's old-formula counterpart, not the new expected value — check the actual failure output rather than assuming which direction), `test_certificates_never_negative_when_benchmark_deduction_exceeds_total` FAILS (`cbam_factor_year=0.0` under the CURRENT buggy formula produces a deduction of 0, so `result` would be `50.0` not `0.0`), `test_certificates_low_year_factor_means_gentle_phase_in_burden` FAILS (currently the early-transition value would be HIGHER than the full-phase-out value, backwards from the assertion).
+
+- [ ] **Step 3: Fix the formula**
+
+In `machineB/addons/cbam/utils/calc_engine.py`, replace:
+
+```python
+    N = [SEE_total - (benchmark * CBAMFactor_year * Q)]
+    N_final = N * (1 - carbon_price_adjustment_fraction)
+```
+
+(in the docstring) with:
+
+```python
+    N = [SEE_total - (benchmark * (1 - CBAMFactor_year) * Q)]
+    N_final = N * (1 - carbon_price_adjustment_fraction)
+```
+
+and add one sentence right after it, before the existing `carbon_price_adjustment_fraction is...` paragraph:
+
+```python
+    CBAMFactor_year is the CBAM phase-in percentage for the reporting year
+    (2.5% for 2026, rising to 100% by 2034, per Reg. (EU) 2023/956 Art. 31)
+    - it represents how much of the benchmark-based free-allocation
+    equivalent has been PHASED OUT, so (1 - CBAMFactor_year) is the
+    fraction STILL deducted: a small CBAMFactor_year (early years) means a
+    LARGE deduction and a correspondingly light certificate burden,
+    growing to a full deduction of zero (full certificate burden) once
+    CBAMFactor_year reaches 100% in 2034.
+```
+
+Then replace the implementation line:
+
+```python
+    benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes
+```
+
+with:
+
+```python
+    benchmark_deduction = benchmark * (1 - cbam_factor_year) * quantity_tonnes
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `python -m pytest machineB/tests/test_calc_engine.py -v`
+Expected: all pass (15 tests - 2 revised, 1 new, net +1 from the file's prior count, matching the plan's earlier work in this branch).
+
+Run: `python -m pytest machineB/tests/ shared/ -q`
+Expected: PASS, +1 from the branch's running total (127 -> 128), no other existing test's expected value changed. If any other test unexpectedly breaks, that test was relying on the buggy formula's behavior somewhere it shouldn't have - investigate before proceeding, don't paper over it.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add machineB/addons/cbam/utils/calc_engine.py machineB/tests/test_calc_engine.py
+git commit -m "$(cat <<'EOF'
+Fix inverted cbam_factor_year direction in certificate calculation
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+---
+
+### Task 9: Redo M7's remaining fixtures with real, populated countries/routes; resolve the quarterly-pricing gap
+
+**Files:**
+- Modify: `shared/data/seed_emission_factors.py`
+- Modify: `shared/data/test_seed_emission_factors.py`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: real values for as many of the 6 still-`None` `direct_ef` fields as genuinely populated countries/routes allow, plus a real (averaged) `reference_certificate_price` for 2026.
+
+The 5 country/route combinations currently in `EMISSION_FACTOR_SEEDS` (steel BF-BOF/FR, EAF_scrap/FR, EAF_DRI/TR, aluminium primary_electrolysis/NO, secondary_recycled/TN) were chosen illustratively in an earlier session, before anyone checked whether the primary sources (JRC134682, Reg. (EU) 2025/2621) actually publish data for those specific combinations. Task 6 found they mostly don't (France and Norway are EU/EU-ETS members, out of CBAM's import scope entirely; Tunisia is absent from the aluminium tables; the EAF_DRI route tag is defined but attached to zero real data rows for Turkey or anyone else).
+
+- [ ] **Step 1: Find real, populated combinations**
+
+Using `WebFetch`/`WebSearch` (same tools, same standard as Task 6: only a number seen in clean, directly-quotable primary text counts), find country/route combinations for steel (routes: `BF-BOF`, `EAF_scrap`, `EAF_DRI` — see `machineB/addons/cbam/models/cbam_production_route.py` for the exact allowed route codes) and aluminium (`primary_electrolysis`, `secondary_recycled`) that JRC134682 and/or Reg. (EU) 2025/2621 actually publish default emission-factor data for, among CBAM's real import-origin countries (non-EU, non-EEA). Prioritize keeping at least one steel and one aluminium combination that plausibly matches `projecthandoff.md` section 3's stated regional relevance (Tunisia exports steel/aluminium/phosphate to the EU) if the primary sources support it for ANY steel or aluminium route Tunisia is actually listed under — check this specifically before concluding Tunisia has to be dropped entirely; if the sources only support Tunisia for a different route or sector than currently assumed, use that route instead of substituting a different country.
+
+- [ ] **Step 2: Escalate on partial failure, same as Task 6**
+
+If fewer than 5 real combinations can be found this way, that's an acceptable partial outcome — fill in what's genuinely verifiable, leave the rest as documented placeholders exactly as Task 6 did, and say so plainly in your report. Do not force a 5-for-5 result by loosening the "clean primary text" standard.
+
+- [ ] **Step 3: Update `EMISSION_FACTOR_SEEDS`**
+
+For each combination you found real data for, replace its `country`/`direct_ef`/`markup_pct` fields (the `markup_pct` value, 0.10 for 2026, is already correctly sourced from Task 6 and applies uniformly — do not re-derive it) and `source_document` citation. For any combination you could NOT source, leave it as a clearly-labeled `None` placeholder with an updated `# TODO:` comment naming what you actually found out (e.g., "France is out of CBAM scope, no data exists for this combination - needs a different country entirely" rather than the stale original comment that assumed data existed and just hadn't been looked up yet).
+
+- [ ] **Step 4: Resolve the quarterly-pricing gap**
+
+For `YEAR_PARAMETER_SEEDS`'s `reference_certificate_price`, use the average of the real, cited 2026 quarterly figures Task 6 already found (Q1 €75.36, Q2 €75.28 - re-verify these are still the most recent published figures at the time this task runs, in case Q3 has since been published, and use all currently-published 2026 quarters in the average, not just Q1/Q2 if a Q3 figure now exists). Set `reference_certificate_price` to that average, and update `YearParameterSeed`'s `source_document` to state plainly that it's an average of the published 2026 quarterly CBAM certificate prices as of the cited quarters, not a single official annual figure (there isn't one) - name the exact quarters averaged and their individual values in the citation string so a future reader can see the approximation, not just trust a bare number.
+
+- [ ] **Step 5: Update tests**
+
+`shared/data/test_seed_emission_factors.py`'s `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` (from Task 6) needs its expected list of still-blocked fields updated to match whatever this task actually resolved versus left open. Update it to name the new, real list - do not just widen it to `len(incomplete) >= 0` or otherwise loosen the assertion to avoid maintaining it.
+
+- [ ] **Step 6: Run tests**
+
+Run: `python -m pytest shared/data/test_seed_emission_factors.py -v`
+Expected: PASS with the updated assertions.
+
+Run: `python -m pytest machineB/tests/ shared/ -q`
+Expected: PASS, same count as after Task 8 (this task changes data and one test's expected list, not test count).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add shared/data/seed_emission_factors.py shared/data/test_seed_emission_factors.py
+git commit -m "$(cat <<'EOF'
+M7: redo fixture country/route selection with real, populated data; resolve quarterly-pricing gap
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+- [ ] **Step 8: Update `docs/PROGRESS.md`**
+
+Update the M7 section (added by Task 6's commits) to reflect the new total: how many of the 9 original fields are now real (Task 6's 3 plus whatever this task added), which specific fields (if any) remain genuinely blocked and why, and the quarterly-pricing approximation's caveat. If every field is now real, update the Quick Status table's M7 row to `**Done, real data seeded**`; if some remain blocked, keep it at `**Partially done**` with an accurate fraction.
+
+```bash
+git add docs/PROGRESS.md
+git commit -m "$(cat <<'EOF'
+Update PROGRESS.md with M7's final real-data status after fixture redesign
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+---
+
+### Task 10: Document Task 7's deferred status
+
+**Files:**
+- Modify: `docs/PROGRESS.md`
+
+**Interfaces:** none (documentation only).
+
+The human partner decided to defer Task 7 (real two-machine Tailscale mesh verification) rather than install Tailscale now. This task just records that decision so the project's status doc doesn't silently omit why the real mesh still isn't verified.
+
+- [ ] **Step 1: Update `docs/PROGRESS.md`**
+
+In the "Machine topology deviation" paragraph (in the "Live infra verification pass" section), add one sentence noting that a follow-up session attempted to close this deviation but found Tailscale still not installed on the available host, and the human partner chose to defer real-mesh verification rather than provision it now - the local-dev stand-in remains the tested topology until that changes. Do not delete or substantially rewrite the existing paragraph - it's the historical record of why the deviation exists; this just adds the follow-up attempt's outcome.
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/PROGRESS.md
+git commit -m "$(cat <<'EOF'
+Document Task 7's deferred status (Tailscale still not installed)
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+---
+
 ## Task Order and Independence
 
 Tasks 1–5 have a soft dependency chain (1 and 2 make 5's live re-verification produce honest, non-misleading evidence; 3 and 4 are fully independent of everything else and can run in any order, including in parallel with 1/2 if using subagent-driven-development's "never dispatch multiple implementers in parallel" rule literally — meaning sequential dispatch is still required even though there's no file overlap). Tasks 6 and 7 are each independently blockable on an external precondition (primary-source documents; a second machine + Tailscale) and do not depend on Tasks 1–5 completing first — they can be attempted whenever their precondition is met, including before Tasks 1–5 if that's more convenient for whoever is executing this plan.
