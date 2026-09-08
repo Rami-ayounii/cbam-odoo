@@ -23,12 +23,18 @@ class _FakeDeclaration:
     reporting_year = 2026
 
 
+class _FakeSourceDocument:
+    id = 42
+    attachment_filename = "mill-certificate.txt"
+
+
 class _FakeLine:
     declaration_id = _FakeDeclaration()
     good_id = _FakeGood()
     installation_id = _FakeInstallation()
     quantity_tonnes = 41.88
     data_source = "actual"
+    source_document_ids = [_FakeSourceDocument()]
 
 
 class _FakeModel:
@@ -60,4 +66,5 @@ def test_get_declaration_line_context_reads_nested_fields():
         "production_route": "BF-BOF",
         "quantity_tonnes": 41.88,
         "data_source": "actual",
+        "source_document_ids": [{"document_id": 42, "filename": "mill-certificate.txt"}],
     }

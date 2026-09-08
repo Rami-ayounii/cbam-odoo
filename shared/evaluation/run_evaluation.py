@@ -96,11 +96,60 @@ def run_evaluation_on_record(
         declaration_line_id=declaration_line_id,
     )
 
+    # Mirrors main.py's real production prompt shape exactly (declaration_id/
+    # declaration_line_id + a "known context" JSON block + document_id under
+    # source_document_ids), instead of the raw document text dumped directly
+    # into the user message this harness used to build. That divergence was
+    # a real bug: SYSTEM_PROMPT explicitly instructs the model to retrieve
+    # document content via extract_field, but extract_field requires a
+    # document_id and this harness never supplied one anywhere - so real
+    # runs against this harness were never actually exercising extract_field
+    # successfully (a live production trace showed the same failure mode:
+    # see docs/PROGRESS.md's audit follow-up section). good_id/
+    # installation_id are arbitrary placeholders (not real Odoo ids, not
+    # ground truth) - FixtureOdooClient doesn't validate them and
+    # scoring.py doesn't score them - included only because
+    # write_declaration_line requires them and, in real production, they'd
+    # already be known context the model never has to extract.
+    #
+    # good_sector/installation_country/production_route are likewise
+    # genuinely pre-known in real production (fixed properties of the good/
+    # installation records the line already points to, per
+    # get_declaration_line_context - never extracted from a document there
+    # either) and are NOT in scoring.py's SCORED_FIELDS, so surfacing them
+    # here doesn't leak anything this evaluation measures - it only stops
+    # the model from trying (and failing) to extract_field a field that was
+    # never a valid extract_field enum option in the first place. A live
+    # trace without these (docs/PROGRESS.md's audit follow-up section)
+    # showed exactly that failure: extract_field(field_name="sector", ...)
+    # rejected by the schema, then the model gave up instead of retrying.
+    # quantity_tonnes/data_source are deliberately NOT included here even
+    # though production's get_declaration_line_context does include them -
+    # they stay genuine extraction targets so this harness still tests
+    # extract_field's real job, at the cost of not perfectly matching
+    # production's task boundary for those two fields specifically.
+    line_context = {
+        "declaration_id": declaration_id,
+        "good_id": 1,
+        "installation_id": 1,
+        "good_sector": record["ground_truth"].get("sector"),
+        "installation_country": record["ground_truth"].get("installation_country"),
+        "production_route": record["ground_truth"].get("production_route"),
+        "source_document_ids": [
+            {"document_id": "1", "filename": f"{record['record_id']}.txt"}
+        ],
+    }
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": f"Process document {record['record_id']}:\n\n{record['document_text']}",
+            "content": (
+                f"Process declaration_id={declaration_id} "
+                f"declaration_line_id={declaration_line_id}.\n"
+                "Known context already set on this declaration line "
+                "(read-only, you did not extract this yourself): "
+                f"{json.dumps(line_context)}"
+            ),
         },
     ]
 

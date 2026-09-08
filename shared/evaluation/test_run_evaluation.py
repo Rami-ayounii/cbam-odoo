@@ -96,6 +96,39 @@ def test_run_evaluation_on_record_scores_a_correct_completion():
     assert result.field_scores["data_source"] is True
 
 
+def test_run_evaluation_on_record_gives_the_model_a_document_id_to_extract_with():
+    # Regression test for a real bug (docs/PROGRESS.md's audit follow-up
+    # section): this harness used to dump the raw document text directly
+    # into the user message instead of requiring extract_field, even though
+    # SYSTEM_PROMPT instructs the model to use extract_field - and never
+    # supplied any document_id anywhere, so a real model could never
+    # construct a valid extract_field call. Now the harness must mirror
+    # main.py's real "known context" shape and give the model a document_id
+    # to use, and must NOT leak the raw document text directly into the
+    # prompt (that would let a model "cheat" by reading it in-context
+    # instead of genuinely exercising extract_field, unlike real production).
+    records = load_synthetic_records(DATA_DIR, limit=1)
+    record = records[0]
+
+    captured = {}
+
+    class CapturingLLMClient:
+        def chat(self, messages, tools):
+            captured["messages"] = messages
+            return FakeLLMResponse(content="done")
+
+    from datetime import date
+
+    run_evaluation_on_record(
+        record, CapturingLLMClient(), tool_schemas=[], declaration_date=date(2026, 1, 1)
+    )
+
+    user_message = captured["messages"][1]["content"]
+    assert "document_id" in user_message
+    assert "source_document_ids" in user_message
+    assert record["document_text"] not in user_message
+
+
 def test_run_evaluation_on_record_captures_errors_without_raising():
     records = load_synthetic_records(DATA_DIR, limit=1)
     record = records[0]

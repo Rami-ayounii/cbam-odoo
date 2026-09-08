@@ -84,7 +84,16 @@ class OdooClient:
         """Read-only snapshot of the fields already set on this line before
         the job starts (good/installation/quantity - see main.py's
         docstring on why the model needs this, since no tool exists to look
-        up a good's CN code or an installation's country from scratch)."""
+        up a good's CN code or an installation's country from scratch).
+
+        source_document_ids is included for the same reason: extract_field
+        requires a document_id argument, but no tool exists to list a
+        line's source documents - without their ids surfaced here, the
+        model has no legal way to ever call extract_field at all. A real
+        live trace (docs/PROGRESS.md's audit follow-up section) showed
+        exactly this: extract_field called with a missing document_id,
+        because none was ever given, and the model never retried it.
+        """
         model = self._odoo.env["cbam.declaration.line"]
         record = model.browse(int(declaration_line_id))
         return {
@@ -99,6 +108,10 @@ class OdooClient:
             "production_route": record.installation_id.production_route_id.code,
             "quantity_tonnes": record.quantity_tonnes,
             "data_source": record.data_source,
+            "source_document_ids": [
+                {"document_id": doc.id, "filename": doc.attachment_filename}
+                for doc in record.source_document_ids
+            ],
         }
 
     def write_declaration_line(self, declaration_line_id, **data):

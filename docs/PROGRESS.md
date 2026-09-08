@@ -18,7 +18,7 @@
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); the audit follow-up below also gave `cbam.good.benchmark` a real route dimension, honestly leaving 2 route-specific benchmark values blocked rather than silently wrong — `find_incomplete_seeds()` now returns 3 items, see "Independent audit + follow-up fixes" section | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
-| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
+| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy), then the Field-accuracy root-cause investigation section for two real bugs found and fixed (missing document_id, harness not exercising extract_field) — still 0% after both fixes, now confirmed a real llama3.1:8b tool-calling ceiling (verified live), not a remaining prompt/context bug | `ceaf01c` |
 
 ---
 
@@ -855,6 +855,118 @@ field-accuracy problem itself (the audit's highest-priority open item) -
 needs either a stronger/larger model benchmarked against the same M9
 harness, or real prompt/grounding work on `extract_field`, both of which
 are a separate, larger effort the human partner asked to scope separately.
+
+---
+
+## Field-accuracy root-cause investigation (2026-09-08, same day)
+
+Follow-up to the "not done" item directly above - the human partner asked
+to scope it after all. Ran on a machine that turned out to already have
+the live infra up (Docker Desktop, an RTX 5070, and the
+`docker-compose.local-dev.yml` stack from a prior session still running,
+project name `project-completion`, `llama3.1:8b` loaded) - real evidence,
+not a cold-start guess.
+
+**First real finding, from the live Odoo database, not a fresh run:**
+`cbam_source_document.raw_llm_output` on the one existing record (the M6
+re-run trace from the "Agentic completion-gap follow-up" section above)
+showed the model calling `lookup_default_value(sector="good_sector",
+route="production_route", country="installation_country", ...)` - passing
+the literal JSON *key names* from the "Known context" object as if they
+were the values, and never once calling `extract_field` successfully
+(missing/wrong argument names, and - separately - no `document_id` was
+ever available anywhere in the prompt for it to use even if it had
+guessed the right argument shape). Two concrete, structural bugs, not a
+vague "model isn't good enough":
+
+1. `main.py`'s `get_declaration_line_context()` (via `odoo_client.py`) never
+   included the line's `source_document_ids` - `extract_field` requires a
+   `document_id`, and nothing in the prompt ever gave the model one to use.
+2. `SYSTEM_PROMPT` never told the model to substitute actual context
+   *values* into tool arguments rather than the JSON *keys* it saw.
+
+Both fixed: `odoo_client.py` now includes `source_document_ids` (id +
+filename) in the context; `SYSTEM_PROMPT` gained an explicit worked example
+("if the context contains `"good_sector": "steel"` ... pass `"steel"`,
+never pass the literal text `"good_sector"`"). `test_odoo_client.py` and
+`test_get_declaration_line_context_reads_nested_fields` updated to match.
+
+**Second finding: the M9 harness itself (`run_evaluation.py`) was a
+different, inconsistent code path from production**, and is the thing that
+actually produced every `docs/evaluation*.md` number to date. It dumped the
+full document text directly into the user message - bypassing
+`extract_field` entirely - while `SYSTEM_PROMPT` still told the model it
+*must* use `extract_field` first, and (like production) never supplied a
+`document_id` either. Fixed to build the same "known context" JSON shape as
+`main.py`'s real flow, with a `document_id` the model can legally use.
+Also added `good_sector`/`installation_country`/`production_route` to that
+context - genuinely pre-known in real production (fixed properties of the
+good/installation records, never extracted from a document there either)
+and not in `scoring.py`'s `SCORED_FIELDS`, so this doesn't leak anything
+the evaluation measures; a live trace without them showed the model trying
+`extract_field(field_name="sector", ...)`, which was never a valid enum
+option, then giving up instead of retrying. `quantity_tonnes`/`data_source`
+were deliberately left as genuine extraction targets (not moved into
+context) so the harness still exercises `extract_field`'s real job, even
+though this doesn't perfectly match production's task boundary for those
+two fields specifically - noted inline in `run_evaluation.py`, not silently
+decided away. New regression test:
+`test_run_evaluation_on_record_gives_the_model_a_document_id_to_extract_with`.
+
+**Live verification of the mechanism fix (not just the code):** a
+single-record traced run (ad hoc script, not committed - see the trace
+excerpt below) confirmed `extract_field` now genuinely succeeds end to end
+for the first time - the model called `extract_field(document_id="1",
+field_name="quantity_tonnes")` and got back the real document text ("Quantity
+covered : 41880.0 kg", correctly a kg-not-tonnes medium-difficulty case per
+M1's generator design). This is real, working proof the context/grounding
+bugs above are fixed, not a hypothesis.
+
+**But the remaining failure mode is a genuine model capability ceiling, not
+another bug to fix:** in that same trace, immediately after the successful
+extraction, the model went on to fail almost every subsequent multi-argument
+tool call by dropping exactly one required field each time -
+`lookup_default_value` (needs `sector`+`route`+`country`) was attempted 3
+times, each missing at least one of the three despite all three being
+present verbatim in the context it had just been given; `calculate_emissions`
+was called with invented argument names (`quantity`/`emission_factors`)
+that don't exist in the schema; `write_declaration_line` similarly invented
+names (`emissions_tonnes`) and omitted required fields; even the final
+`flag_for_human_review` call omitted its one required `reason` field. This
+matches, and now much more concretely evidences, M4's original benchmark
+finding that `llama3.1:8b` - the *winner* among 4 candidates tested - only
+achieves a 50% valid-tool-call rate. The mechanism-level bugs (context
+grounding, document_id availability, harness fidelity) are fixed and
+verified; the remaining gap is the model's own reliability at constructing
+correct multi-field JSON, which prompting cannot fully close.
+
+**Final honest number, both fixes in effect** (`docs/evaluation-post-audit-
+fix-2026-09-08.md`, live `llama3.1:8b`, 6 records - reduced from the usual
+20 because this machine had only ~1.5 GB of ~16 GB RAM free with Docker
+Desktop's WSL2 VM already using ~6.8 GB, and the first full-20 attempt was
+killed by the OS for low memory):
+
+| | completed | escalated | exhausted | field accuracy (6 fields) |
+|---|---|---|---|---|
+| Original baseline (`docs/evaluation.md`, 20 records) | 17/20 | 3/20 | 0/20 | 0% |
+| Post-fix (`docs/evaluation-post-audit-fix-2026-09-08.md`, 6 records) | 4/6 | 1/6 | 1/6 | 0% |
+
+Still 0% - reported exactly as measured, not softened. The fixes are real
+and independently verified (the trace above), but they only unblock the
+*mechanism*; they don't and can't raise `llama3.1:8b`'s own multi-argument
+tool-calling reliability. **Recommendation, not yet acted on:** benchmark a
+different/larger model against this now-fixed harness before concluding
+further prompt engineering is worthwhile - this environment's GPU (RTX
+5070, 12GB VRAM) already ruled out `qwen2.5:14b-instruct` and `qwen3:8b` at
+0% valid-call rate in M4's original benchmark, so the next real experiment
+needs either a model M4 didn't try, or accepting `llama3.1:8b`'s ceiling
+and reframing the academic contribution around the harness/methodology
+itself rather than a working extractor - a real, defensible finding either
+way, but a decision for the human partner, not one to make silently here.
+
+**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 131
+passed (130 + 1 new regression test); no existing test's expectations
+changed.
 
 ---
 
