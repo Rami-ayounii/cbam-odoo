@@ -1106,6 +1106,88 @@ EOF
 
 ---
 
+### Task 11: Fill in `cbam_factor_year`'s real 2026 value
+
+**Files:**
+- Modify: `shared/data/seed_emission_factors.py`
+- Modify: `shared/data/test_seed_emission_factors.py`
+- Modify: `docs/m7-source-verification.md`
+- Modify: `docs/PROGRESS.md`
+
+**Interfaces:**
+- Consumes: nothing new.
+- Produces: a real (non-`None`) `cbam_factor_year` on `YEAR_PARAMETER_SEEDS`'s single 2026 record — this is the last remaining `None` field in the M7 seed data after Tasks 6 and 9 (`direct_ef` for steel EAF_DRI stays genuinely blocked, structurally absent from the source — that one is not in scope here).
+
+Task 9 investigated `calc_engine.py`'s certificate formula (fixed by Task 8) and, in the course of that, surfaced a real, directly-quotable primary-source citation for `cbam_factor_year`'s actual 2026 value — Directive 2003/87/EC Art. 10a(1a), cited in `docs/m7-source-verification.md`'s Task 9 addendum. That citation was correctly left unused by Task 9 (out of its declared scope: fixing/using the formula, not filling in the value it operates on). This task closes that last gap using the citation that already exists — it is not a fresh research task.
+
+- [ ] **Step 1: Re-read and confirm the existing citation**
+
+Read `docs/m7-source-verification.md`'s section discussing `cbam_factor_year`/Directive 2003/87/EC Art. 10a(1a) (added by Task 9). Confirm the exact percentage figure it quotes for 2026 and the exact article/paragraph citation. If anything about that citation reads as ambiguous or you want to independently re-confirm it with a fresh `WebFetch`/`WebSearch` before using it, do so — same "clean primary text only" standard as Tasks 6 and 9 — but expect this to be a quick confirmation of already-found material, not a new investigation.
+
+- [ ] **Step 2: Write the failing test**
+
+Add to `shared/data/test_seed_emission_factors.py`:
+
+```python
+def test_year_parameter_2026_cbam_factor_year_is_no_longer_a_placeholder():
+    from seed_emission_factors import YEAR_PARAMETER_SEEDS
+
+    seed_2026 = next(s for s in YEAR_PARAMETER_SEEDS if s.year == 2026)
+    assert seed_2026.cbam_factor_year is not None
+    assert 0.0 < seed_2026.cbam_factor_year < 1.0
+```
+
+- [ ] **Step 3: Run the test to verify it fails**
+
+Run: `cd shared/data && python -m pytest test_seed_emission_factors.py -k cbam_factor_year -v`
+Expected: FAIL (`cbam_factor_year is not None` fails, since it's currently `None`).
+
+- [ ] **Step 4: Fill in the real value**
+
+In `shared/data/seed_emission_factors.py`, find the 2026 `YearParameterSeed` record's `cbam_factor_year=None` line and replace `None` with the real figure confirmed in Step 1 (expressed as a fraction, e.g. `0.025` for 2.5%, matching the convention already used everywhere else in this codebase — `dev_fixtures.py`'s `DEV_YEAR_PARAMETER_FIXTURE` and this same file's own pre-existing comments both already assume the 2.5%-for-2026 convention, so use whatever figure Step 1's citation actually confirms, expressed the same way). Update the record's `source_document` string to the real citation, dropping any "PLACEHOLDER"/"BLOCKED" language, matching the citation style already used for the fields Tasks 6 and 9 resolved.
+
+- [ ] **Step 5: Run the test to verify it passes**
+
+Run: `cd shared/data && python -m pytest test_seed_emission_factors.py -v`
+Expected: all pass, including the new test.
+
+Also update `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` (from Tasks 6/9) — it currently expects `cbam_factor_year` in its blocked list; remove it, leaving only the genuinely-still-blocked `steel/EAF_DRI` field.
+
+- [ ] **Step 6: Run the full suite**
+
+Run: `python -m pytest machineB/tests/ shared/ -q`
+Expected: PASS, +1 from the branch's running total, no other existing test's expected value changed.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add shared/data/seed_emission_factors.py shared/data/test_seed_emission_factors.py
+git commit -m "$(cat <<'EOF'
+M7: fill in cbam_factor_year's real 2026 value
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+- [ ] **Step 8: Update the docs**
+
+Update `docs/m7-source-verification.md`'s summary line and `docs/PROGRESS.md`'s M7 Quick Status row and narrative to reflect the new total (9 of 10 tracked fields real now — only steel EAF_DRI's `direct_ef` stays genuinely blocked, structurally absent from the source). If this is the last field, consider whether the Quick Status row should now read `**Done, real data seeded (EAF_DRI direct_ef genuinely unavailable)**` or similar — accurate, not a bare "Done" that would hide the one real remaining gap.
+
+```bash
+git add docs/m7-source-verification.md docs/PROGRESS.md
+git commit -m "$(cat <<'EOF'
+Update M7 docs: cbam_factor_year resolved, 9/10 fields now real
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01W43joiTiRzSNz45NifmnCq
+EOF
+)"
+```
+
+---
+
 ## Task Order and Independence
 
 Tasks 1–5 have a soft dependency chain (1 and 2 make 5's live re-verification produce honest, non-misleading evidence; 3 and 4 are fully independent of everything else and can run in any order, including in parallel with 1/2 if using subagent-driven-development's "never dispatch multiple implementers in parallel" rule literally — meaning sequential dispatch is still required even though there's no file overlap). Tasks 6 and 7 are each independently blockable on an external precondition (primary-source documents; a second machine + Tailscale) and do not depend on Tasks 1–5 completing first — they can be attempted whenever their precondition is met, including before Tasks 1–5 if that's more convenient for whoever is executing this plan.
