@@ -15,7 +15,7 @@
 | M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
-| M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) | `b1a7d17` |
+| M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); the audit follow-up below also gave `cbam.good.benchmark` a real route dimension, honestly leaving 2 route-specific benchmark values blocked rather than silently wrong — `find_incomplete_seeds()` now returns 3 items, see "Independent audit + follow-up fixes" section | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run, now with non-zero accuracy** — 17/20 completed, 3/20 escalated, 0% field accuracy originally; see Agentic completion-gap follow-up (re-run), Field-accuracy root-cause investigation (two real bugs fixed, still 0%, confirmed a real llama3.1:8b tool-calling reliability ceiling), then MVP-focused follow-up section — shrinking the tool schemas to only what the model actually decides (plus an independent dev-fixture bug fix) got 6/6 completed, 0/6 escalated/exhausted, and the first-ever non-zero field accuracy (33% on 4 of 6 fields; the 2 fields still requiring real extraction from document text stay at 0%) | `ceaf01c` |
@@ -1085,6 +1085,90 @@ still blocked on this machine's available RAM.
 **Verification:** `python -m pytest machineB/tests/ shared/ -q` → 135
 passed (131 + 4 new regression tests); no existing test's expectations
 changed except the one replaced test named above.
+
+---
+
+## Real production-path verification (2026-09-08, same day) - first-ever full-stack success
+
+Everything above (the field-accuracy investigation and MVP-focused fixes)
+was verified against `run_evaluation.py`'s harness, which talks to
+`FixtureOdooClient`, not a real Odoo instance. At the human partner's
+explicit request ("go with #1" - prove the real path works, not just the
+harness), this pass exercised the actual deployed shape: `POST /jobs` on
+the real orchestrator FastAPI service, a real `llama3.1:8b` call through
+the real nginx gate, and a real write into the real Postgres-backed Odoo
+database.
+
+**Infra notes (not code changes, but real obstacles hit and fixed):** the
+`docker-compose.local-dev.yml` stack found running on this machine
+(project name `project-completion`, up 21h) was launched from a git
+worktree (`.claude/worktrees/project-completion`) that has since been
+deleted - both the `orchestrator` and `odoo` containers' bind mounts
+pointed at that now-missing path, so the orchestrator was serving
+stale-from-Docker-image code and Odoo's `/mnt/extra-addons` was silently
+empty. Recreated both containers in place (`docker compose -p
+project-completion -f docker-compose.local-dev.yml up -d --no-deps
+<service>`, targeting the existing named volumes so the real `cbam`
+database/filestore were untouched) pointed at the current checkout instead,
+rebuilding the orchestrator image first to pick up every fix from the two
+sections above. `.env.local-dev` was recreated locally (not committed -
+`.gitignore`d) from the real secrets already baked into the running `db`/
+`odoo`/`nginx` containers' own environments, so the reconstructed stack's
+credentials still matched what Postgres/Odoo/nginx already had on disk.
+Ran `odoo -u cbam` (module upgrade) to apply this session's schema changes
+(`cbam.good.benchmark`, `certificates_status`) to the live database -
+succeeded cleanly, verified directly against `information_schema` and
+`\d cbam_good_benchmark`. Re-ran `dev_fixtures.seed_dev_fixtures_odoo()`
+(idempotent - reused all 2 existing goods and 6 installations, only added
+the 3 new benchmark rows) to populate the new table.
+
+**The real job:** `POST /jobs` against the one pre-existing real
+declaration line (id 1, `SYNTH-0000-B286B5.txt` attached, from an earlier
+session's live-verification fixture) returned `job_id`, polled to
+`status: completed` after 8 iterations with `final_message: "The
+declaration line has been successfully written."` A query against the real
+`cbam_declaration_line` row confirmed a write genuinely happened (not the
+historically-documented "completed but nothing written" silent-stop
+pattern) - `certificates_status` correctly computed as `exempt` (41.88 t is
+under the 50 t/year threshold), proving the whole M2-through-M8 pipeline
+(known_context injection, the new benchmark model, the calc engine, the
+new status field) works together against a real database, not just in
+unit tests or the synthetic harness.
+
+**But the written VALUES are wrong, and the real trace shows exactly why -
+a distinct, new, specific finding, not a repeat of the extract_field
+grounding bug:** pulled from `cbam_source_document.raw_llm_output` (the
+real audit trail, live data): the model called `extract_field(document_id=
+"1", field_name="direct_emissions_actual")` successfully (the document_id
+fix from the field-accuracy investigation section works in the real path
+too, not just the harness), then separately called `lookup_default_value()`
+and got back a real emission factor (`direct_ef=2.1`, real
+`emission_factor_id=2` from the live database this time, not a fixture
+`None`). It then called `calculate_emissions` with **different, invented
+numbers** (`direct_ef=0.98, indirect_ef=1.49`) instead of the `2.1`/`0.0`
+it had just been handed - a value-carryover failure between two of its own
+tool calls, not a missing-context problem. Finally it called
+`write_declaration_line` with `embedded_emissions_total` (not a real
+argument on that tool - the model conflated "the number I just computed"
+with "what this tool needs") and never supplied
+`direct_emissions_actual`/`indirect_emissions_actual`/`emission_factor_id`
+at all, so every one of them landed at its 0.0/`None` default. The
+resulting row is real and committed, but empirically wrong - exactly
+consistent with, and now demonstrated in the real system rather than only
+the harness, the field-accuracy investigation's conclusion: the remaining
+gap is the model's own reliability at carrying values between steps of a
+multi-step task, not tool-call plumbing or missing context.
+
+**Assessment:** this is the "real MVP" milestone the human partner asked
+for in the sense that mattered - the full architecture, end to end, no
+mocks, produces a real committed database row from a real document via a
+real agentic loop, for the first time in this project's history. It is not
+yet a *correct* MVP - the numbers it writes cannot be trusted without
+human review, which is exactly why `flag_for_human_review` and Odoo's
+`needs_review`/draft states exist in this design. Closing that gap is
+model-reliability work (retry-with-correction prompting, a stronger model,
+or accepting human-in-the-loop review as the actual product shape), not
+more plumbing fixes.
 
 ---
 
