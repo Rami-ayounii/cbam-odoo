@@ -82,6 +82,25 @@ class ToolDispatcher:
         # the one side-effecting action itself, which the tool's own schema
         # description already documents as "must be called at most once".
         self._declaration_line_written = False
+        # Remembers the most recent successful lookup_default_value() result
+        # for this job. A real live trace (docs/PROGRESS.md's "Real
+        # production-path verification" section) showed the model
+        # correctly calling lookup_default_value, getting back a real
+        # direct_ef, and then inventing DIFFERENT numbers when it called
+        # calculate_emissions moments later, then never supplying
+        # emission_factor_id to write_declaration_line at all - a
+        # value-carryover failure between the model's own tool calls, not a
+        # missing-context problem. Since lookup_default_value's result is
+        # exactly as deterministic as the known_context facts above, the
+        # same fix applies: execute() auto-fills calculate_emissions'
+        # direct_ef/indirect_ef/markup_pct and write_declaration_line's
+        # emission_factor_id from here, but ONLY when this line's
+        # data_source is "default" (known_context, not model-supplied) -
+        # never when it's "actual", where the model is expected to use a
+        # genuinely-extracted measured value instead, and a stray/mistaken
+        # lookup_default_value call (also observed live) must not silently
+        # clobber it.
+        self._last_lookup_default_value = None
         self._handlers = {
             "extract_field": self._extract_field,
             "lookup_default_value": self._lookup_default_value,
@@ -132,6 +151,21 @@ class ToolDispatcher:
             # either.
             args["declaration_id"] = self.declaration_id
 
+        is_default_sourced = self._known_context.get("data_source") == "default"
+        if (
+            name == "calculate_emissions"
+            and is_default_sourced
+            and self._last_lookup_default_value is not None
+        ):
+            for field_name in ("direct_ef", "indirect_ef", "markup_pct"):
+                args[field_name] = self._last_lookup_default_value[field_name]
+        if (
+            name == "write_declaration_line"
+            and is_default_sourced
+            and self._last_lookup_default_value is not None
+        ):
+            args["emission_factor_id"] = self._last_lookup_default_value["emission_factor_id"]
+
         args_model = TOOL_ARG_MODELS[name]
         try:
             validated = args_model(**args)
@@ -160,7 +194,7 @@ class ToolDispatcher:
             declaration_date=self.declaration_date,
             db_session=session,
         )
-        return {
+        result = {
             "sector": factor.sector,
             "route": factor.route,
             "country": factor.country,
@@ -177,6 +211,11 @@ class ToolDispatcher:
             # data_source == "default").
             "emission_factor_id": factor.id,
         }
+        # Remembered so execute() can auto-fill calculate_emissions/
+        # write_declaration_line with these exact values later in the same
+        # job - see the constructor's comment on _last_lookup_default_value.
+        self._last_lookup_default_value = result
+        return result
 
     def _check_consistency(self, extracted_data):
         issues = []

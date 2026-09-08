@@ -1172,6 +1172,110 @@ more plumbing fixes.
 
 ---
 
+## Value-carryover fix + temperature fix: first fully correct real write (2026-09-08, same day)
+
+Direct continuation of the section above's finding - closed both gaps it
+identified, live-verified against the real system, at the human partner's
+request to keep going toward "the real MVP."
+
+**Fix 1 - dispatcher-side memory for `lookup_default_value`'s result.**
+The prior section's real trace showed the model correctly calling
+`lookup_default_value`, getting back `direct_ef=2.1`, then inventing
+different numbers (`0.98`/`1.49`) when calling `calculate_emissions`
+moments later, and never supplying `emission_factor_id` to
+`write_declaration_line` at all. Since `lookup_default_value`'s result is
+exactly as deterministic as the `known_context` facts from the MVP-focused
+section, the same fix applies: `ToolDispatcher` now remembers its own last
+successful `lookup_default_value` result and auto-fills
+`calculate_emissions`'s `direct_ef`/`indirect_ef`/`markup_pct` and
+`write_declaration_line`'s `emission_factor_id` from it - but **only when
+this line's `data_source` is `"default"`** (from `known_context`, never
+model-supplied), so a stray/mistaken `lookup_default_value` call on an
+`"actual"`-sourced line (also observed live) can't clobber a genuinely-
+extracted measured value. Two new regression tests cover both directions
+(the fill-in, and the must-not-clobber case) plus one for the injection
+itself; `machineB/tests/test_tools.py`.
+
+**A separate, structural bug found while testing this fix live - blocked
+the entire `data_source="default"` pathway from ever working in real
+Odoo.** `cbam_declaration_line.py`'s `_check_emission_factor_set_for_default_source`
+constraint (added in the July "Full-codebase verification" pass to stop a
+silent-zero bug) raised a hard `ValidationError` on *any* save where
+`data_source="default"` and `emission_factor_id` is unset - including the
+line's own creation. But a `"default"`-sourced line legitimately starts in
+exactly that state: a human sets `data_source="default"` when creating the
+line (no emission factor chosen yet), and the agent's whole job is to find
+and set `emission_factor_id` via its one atomic `write_declaration_line`
+call. Verified this empirically against the real live database: creating
+such a line via `odoorpc` failed with the constraint's own error message
+before any code in this session touched it. **This means no
+`data_source="default"` line could ever have reached a successful real
+write in this project's history** - M6/M9's live runs either used
+`data_source="actual"` fixtures or never got far enough to hit this. Fixed
+by removing the hard constraint and extending `certificates_status`
+(this session's own earlier addition) with the same honest-incomplete
+pattern: `data_source="default"` + no `emission_factor_id` now computes
+`certificates_status="incomplete"` (0 certificates, visibly unresolved)
+instead of either crashing or silently completing. No pytest coverage for
+this specific change - Odoo model-layer constraints aren't exercised by
+this repo's plain-pytest suite (a repeat of the audit's original,
+already-documented caveat) - verified only live, per below.
+
+**Fix 2 - a real infra finding, not code originally suspected: sampling
+temperature.** While live-testing fix 1, five consecutive real jobs
+against the newly-unblocked `data_source="default"` line failed differently
+- the model repeatedly narrated a tool call as plain-text JSON inside its
+message `content` instead of using the actual OpenAI function-calling
+protocol (e.g. literally emitting `{"name": "write_declaration_line",
+"parameters": {...}}` as chat text). Ollama's own request log for these
+calls showed `temp = 1.000` - `llm_client.py` never set a `temperature` at
+all, so Ollama's default (effectively unconstrained sampling) applied. Low
+temperature is a well-known lever for structured-output/function-calling
+adherence in small models. Added `temperature=0.1` as `LLMClient`'s new
+default (configurable via a constructor param, not hardcoded past that
+one call site) - low but non-zero, since a fully deterministic 0.0 can
+make some models loop on a single bad completion pattern rather than vary
+their next attempt after a tool-call error. Two new regression tests
+(`test_chat_passes_a_low_default_temperature`,
+`test_chat_temperature_is_configurable`) in `test_llm_client.py`.
+
+**Live result - the first fully correct, end-to-end real write in this
+project's history.** After both fixes (orchestrator rebuilt, Odoo
+container restarted to reload the constraint removal - a one-off
+`odoo -u cbam` schema-upgrade run alone does NOT reload the already-running
+server process's Python code, a real operational gotcha hit and resolved
+this session), a fresh `data_source="default"` line (id 4, quantity 30t,
+steel/BF-BOF/EG, a real document attached) completed in 4 iterations. The
+real trace (`cbam_source_document.raw_llm_output`, live data):
+`lookup_default_value` called correctly (`direct_ef=2.1`, `emission_factor_id=2`),
+`calculate_emissions` called with those exact real values this time (no
+invention - `embedded_emissions_total=69.3`), then `write_declaration_line`
+called with **`emission_factor_id` omitted again** - and the write still
+landed correctly (`emission_factor_id=2` in the real database) purely
+because the dispatcher auto-filled it. The real declaration_line row now
+shows `quantity_tonnes=30.0`, `data_source=default`, `emission_factor_id=2`,
+`embedded_emissions_total=69.300` (= 30 × 2.1 × 1.1, verified against the
+real calc engine formula), `certificates_status=computed`,
+`certificates_required=40.050` - a real, correct, cross-checked number,
+not a zero or a guess.
+
+**Assessment:** this is the "real MVP" success case the two sections above
+were building toward - not just a completed job (already achieved), and
+not just correct plumbing with wrong values (the previous section's
+finding), but a genuinely correct end-to-end result, live-verified against
+the real deployed architecture. It required three layered fixes discovered
+in sequence by testing against real infrastructure rather than assuming:
+known_context injection (MVP-focused section), lookup-result carryover +
+the default-source constraint bug (this section), and temperature (this
+section, found only because the constraint fix unblocked a code path that
+had never been reachable before). `direct_emissions_actual`/
+`indirect_emissions_actual` accuracy for `"actual"`-sourced lines remains
+untested by this specific run (this line was `"default"`-sourced) and is
+still the open item from the field-accuracy investigation section -
+genuine document-value extraction, not carryover or plumbing.
+
+---
+
 ## Architecture Reference
 
 ```

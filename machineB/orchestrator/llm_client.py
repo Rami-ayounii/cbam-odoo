@@ -40,8 +40,28 @@ class LLMResponse:
 
 
 class LLMClient:
-    def __init__(self, model, base_url=None, api_key=None, client=None, max_retries=5):
+    def __init__(
+        self,
+        model,
+        base_url=None,
+        api_key=None,
+        client=None,
+        max_retries=5,
+        temperature=0.1,
+    ):
         self._model = model
+        # Low, not zero: a real live trace (docs/PROGRESS.md's "Real
+        # production-path verification" follow-up) showed llama3.1:8b
+        # repeatedly narrating a tool call as plain-text JSON inside
+        # `content` instead of using the actual function-calling protocol -
+        # Ollama's own request log for those runs showed temp=1.000 (the
+        # default when nothing is set), which is known to hurt
+        # structured-output/function-calling adherence in small models.
+        # 0.1 favors the model actually following the tool schema over
+        # creative phrasing, without being fully deterministic (0.0 can
+        # make some models loop on a single bad completion instead of
+        # varying their next attempt after a tool error).
+        self._temperature = temperature
         # max_retries is passed straight to the openai SDK, which already
         # backs off exponentially and honors a Retry-After header on 429s -
         # the default of 2 is too low for a cloud endpoint under real load,
@@ -74,6 +94,7 @@ class LLMClient:
             model=self._model,
             messages=messages,
             tools=tools,
+            temperature=self._temperature,
         )
         message = completion.choices[0].message
         tool_calls = [

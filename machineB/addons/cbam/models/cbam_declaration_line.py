@@ -179,6 +179,24 @@ class CbamDeclarationLine(models.Model):
                 line.certificates_status = "exempt"
                 continue
 
+            if line.data_source == "default" and not line.emission_factor_id:
+                # A "default"-sourced line legitimately exists in this state
+                # before the agent loop has run (write_declaration_line sets
+                # emission_factor_id and data_source together in one atomic
+                # write - see tools.py) - there is no ORM-level constraint
+                # blocking it (a prior version of this module had one, which
+                # made the agentic workflow itself impossible: no line could
+                # ever start as data_source="default" without already having
+                # the very emission factor the agent's job is to find).
+                # Without this check, emission_factor_id.direct_ef/
+                # indirect_ef silently evaluate to 0.0 (Odoo's empty-
+                # recordset field access) and embedded_emissions_total looks
+                # like a real, complete zero rather than an unresolved one -
+                # this makes that visible instead.
+                line.certificates_required = 0.0
+                line.certificates_status = "incomplete"
+                continue
+
             year_parameter = line.year_parameter_id
             if not year_parameter:
                 # No versioned year parameter seeded yet for this reporting
@@ -232,20 +250,6 @@ class CbamDeclarationLine(models.Model):
                     "Good, Installation, and Installation's Production "
                     "Route must all belong to the same sector "
                     f"(found: {', '.join(sorted(sectors))})."
-                )
-
-    @api.constrains("data_source", "emission_factor_id")
-    def _check_emission_factor_set_for_default_source(self):
-        # Without this, an unset emission_factor_id on a data_source =
-        # "default" line makes emission_factor_id.direct_ef/indirect_ef
-        # silently evaluate to 0.0 (Odoo's empty-recordset field access),
-        # producing a complete-looking line with zero embedded emissions
-        # instead of a visible error.
-        for line in self:
-            if line.data_source == "default" and not line.emission_factor_id:
-                raise ValidationError(
-                    "Emission Factor (default) is required when Data Source "
-                    "is 'Default'."
                 )
 
     @api.depends("declaration_id.reporting_year")

@@ -297,6 +297,80 @@ def test_calculate_emissions_applies_markup_pct():
     assert result["embedded_emissions_total"] == pytest.approx(209.0)
 
 
+def test_calculate_emissions_uses_the_prior_lookup_default_value_result_when_default_sourced():
+    # Regression test for a real live-traced bug (docs/PROGRESS.md's "Real
+    # production-path verification" section): the model correctly called
+    # lookup_default_value, got back direct_ef=2.1, then invented different
+    # numbers (0.98/1.49) when calling calculate_emissions moments later -
+    # a value-carryover failure, not a missing-context one. When this line
+    # is data_source="default", the dispatcher must use its own
+    # lookup_default_value result, ignoring whatever the model supplied.
+    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=2.1, id=2)])
+    dispatcher = _make_dispatcher(
+        odoo_client, known_context={"data_source": "default"}
+    )
+    dispatcher.execute(
+        "lookup_default_value", {"sector": "steel", "route": "BF-BOF", "country": "FR"}
+    )
+
+    result = dispatcher.execute(
+        "calculate_emissions",
+        {
+            "quantity_tonnes": 41.88,
+            "direct_ef": 0.98,  # deliberately wrong - must be ignored
+            "indirect_ef": 1.49,  # deliberately wrong - must be ignored
+            "markup_pct": 1.0,  # deliberately wrong - must be ignored
+        },
+    )
+
+    # 41.88 * 2.1 * 1.10 (real direct_ef=2.1, real markup_pct=0.10)
+    assert result["embedded_emissions_total"] == pytest.approx(41.88 * 2.1 * 1.10)
+
+
+def test_calculate_emissions_does_not_use_lookup_result_when_actual_sourced():
+    # The opposite risk: a stray/mistaken lookup_default_value call (also
+    # observed live) must NOT clobber a genuinely-extracted "actual" value
+    # with an irrelevant "default" one.
+    odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=2.1, id=2)])
+    dispatcher = _make_dispatcher(
+        odoo_client, known_context={"data_source": "actual"}
+    )
+    dispatcher.execute(
+        "lookup_default_value", {"sector": "steel", "route": "BF-BOF", "country": "FR"}
+    )
+
+    result = dispatcher.execute(
+        "calculate_emissions",
+        {"quantity_tonnes": 41.88, "direct_ef": 1.9, "indirect_ef": 0.0},
+    )
+
+    assert result["embedded_emissions_total"] == pytest.approx(41.88 * 1.9)
+
+
+def test_write_declaration_line_uses_the_prior_lookup_default_values_emission_factor_id():
+    odoo_client = FakeOdooClient(
+        emission_factors=[_make_factor(direct_ef=2.1, id=2)], write_result_id=5
+    )
+    dispatcher = _make_dispatcher(
+        odoo_client,
+        known_context={
+            "data_source": "default",
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 41.88,
+        },
+    )
+    dispatcher.execute(
+        "lookup_default_value", {"sector": "steel", "route": "BF-BOF", "country": "FR"}
+    )
+
+    result = dispatcher.execute("write_declaration_line", {})
+
+    assert result["declaration_line_id"] == 5
+    assert odoo_client.written["emission_factor_id"] == 2
+    assert odoo_client.written["data_source"] == "default"
+
+
 def test_write_declaration_line_delegates_to_odoo_client_and_never_runs_mid_loop_writes_elsewhere():
     odoo_client = FakeOdooClient(write_result_id=7)
     dispatcher = _make_dispatcher(odoo_client)

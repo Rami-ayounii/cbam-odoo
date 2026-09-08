@@ -112,6 +112,33 @@ def test_chat_passes_model_messages_and_tools_through():
     assert call_kwargs["tools"] == tools
 
 
+def test_chat_passes_a_low_default_temperature():
+    # Regression test for a real live-traced bug (docs/PROGRESS.md's "Real
+    # production-path verification" follow-up): Ollama's own request log
+    # showed temp=1.000 (the default when nothing is set) for real jobs
+    # that repeatedly narrated a tool call as text instead of using the
+    # actual function-calling protocol. A low, non-zero temperature is a
+    # known lever for small-model function-calling adherence.
+    completion = _make_completion(content="ok")
+    fake_client = FakeOpenAIClient(completion)
+    llm_client = LLMClient(model="test-model", client=fake_client)
+
+    llm_client.chat(messages=[], tools=[])
+
+    call_kwargs = fake_client.chat.completions.last_call_kwargs
+    assert 0 < call_kwargs["temperature"] <= 0.3
+
+
+def test_chat_temperature_is_configurable():
+    completion = _make_completion(content="ok")
+    fake_client = FakeOpenAIClient(completion)
+    llm_client = LLMClient(model="test-model", client=fake_client, temperature=0.0)
+
+    llm_client.chat(messages=[], tools=[])
+
+    assert fake_client.chat.completions.last_call_kwargs["temperature"] == 0.0
+
+
 class FlakyCompletions:
     """Raises `error` on the first `fail_times` calls, then succeeds."""
 
