@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Partially done, real data seeded for benchmarks/markup** — 2 EU ETS benchmarks + the 2026 markup rate are real and cited; 5 country/route emission factors and 2 year-parameter fields stay blocked for documented, evidence-based reasons (not a fetch failure) | `2a4deec` |
+| M7 — Versioned emission factor data load | **Partially done, most real data seeded** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), and the 2026 `reference_certificate_price` (average of the two published quarters) are real and cited; steel EAF_DRI's `direct_ef` and `cbam_factor_year` stay blocked for documented, evidence-based reasons (not a fetch failure) | `2a4deec`, `c35dbbe` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) — see Agentic completion-gap follow-up section for a newer re-run (15/20 completed, 1/20 escalated, 4/20 exhausted, still 0% field accuracy) | `ceaf01c` |
 
@@ -297,7 +297,7 @@ Architectural compliance re-verified: the only tool-name branch in `agent_loop.p
 
 ---
 
-### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data partially seeded 2026-09-08, commit `2a4deec`)
+### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data partially seeded 2026-09-08, commit `2a4deec`; fixture country/route redesign 2026-09-08, Task 9)
 
 **What changed since the last pass:** the prior session's fetch tooling
 failures (empty EUR-Lex fetches, a garbled JRC134682 text layer, no local
@@ -328,32 +328,53 @@ article text embedded in each PDF, not a paraphrase or secondary source.
   Sector-wide, not country- or route-specific, so it applies regardless
   of the direct_ef blockers below.
 
-**What's still blocked, and why (evidence, not fetch failure) - these are
-the exact fields named in the task-6 brief:**
-- `direct_ef` for steel BF-BOF/FR and steel EAF_scrap/FR: France is not a
-  listed country in either JRC134682 or IR 2025/2621's Annex I (confirmed
-  by exhaustive search of both extracted documents - "France" never
-  appears as a data country). CBAM default values only exist for non-EU
-  countries of origin; France, an EU member, structurally never needs one.
+**Task 9 (2026-09-08, same day): fixture redesign - real country/route data
+for 4 of the 5 `direct_ef` fields, plus the pricing gap resolved.** Task 6
+had correctly found that France (x2), Norway, and the DRI/EAF route have no
+real CBAM default-value data anywhere in the primary sources - but its
+conclusion that Tunisia's aluminium data was *also* absent turned out to be
+wrong (most likely an artifact of an anchored `grep '^Tunisia$'` against a
+line with an extraction-mangled byte; a substring search finds it fine).
+Task 9 re-fetched the same 41 MB IR 2025/2621 PDF (confirmed byte-identical
+to Task 6's copy: 41,252,987 bytes, 135,102 extracted lines) and:
+- Replaced the France/Norway pairings with real, populated, non-EU/non-EEA
+  country/route combinations the regulation actually publishes CN 7208
+  (steel) / CN 7601 (aluminium) default values for: **Turkiye** (BF-BOF,
+  `direct_ef=2.428`), **Azerbaijan** (EAF_scrap, `direct_ef=0.140`), and
+  **Bahrain** (primary_electrolysis, `direct_ef=1.870` - Bahrain is one of
+  JRC134682's own 15-country aluminium scope and a real-world major
+  primary-aluminium exporter).
+- Re-read Tunisia's own country block in full and found it *does* carry a
+  CN 7601 row tagged "(L) secondary Aluminium", `direct_ef=0.360` -
+  confirming Tunisia was the right country all along for
+  secondary_recycled; only Task 6's "no data" finding was wrong. (Tunisia
+  still has zero steel/CN-72xx rows in this regulation, so the steel side
+  of Task 6's Tunisia finding stands unchanged.)
+- Resolved `reference_certificate_price` for 2026 as the average of the
+  two 2026 quarterly CBAM certificate prices published so far: Q1 2026 =
+  EUR 75.36, Q2 2026 = EUR 75.28 -> **EUR 75.32**. Re-verified directly
+  against the raw HTML of the Commission's official price page as of
+  2026-09-08 (this task's session date) - Q3 2026 (due 5 October 2026) and
+  Q4 2026 (due 4 January 2027) table cells are still empty, genuinely not
+  published yet. This is an explicit approximation, not a single official
+  annual figure - the `source_document` citation names the exact quarters
+  and values averaged so a future reader can see the approximation, not
+  just trust a bare number.
+
+**What's still blocked, and why (evidence, not fetch failure) - down to 2
+fields after Task 9:**
 - `direct_ef` for steel EAF_DRI/TR: IR 2025/2621's Annex I legend defines
   a "(D) Carbon Steel based on DRI/EAF" route indicator, but across the
   entire ~2,400-page Annex I it is attached to zero actual data rows for
-  any country (confirmed by an exhaustive count) - Turkiye's own CN 7208
-  entry, and every other country's, uses "(C) BF/BOF" instead. JRC134682
-  gives Turkiye only one blended per-CN-code value, not a route-specific
-  one (its own Step 3 methodology text says route-decomposed figures
-  exist only for the out-of-scope "weighted average", not named
-  countries). No DRI/EAF-route CBAM default value exists in either source.
-- `direct_ef` for aluminium primary_electrolysis/NO: Norway is not listed
-  in IR 2025/2621's Annex I, and JRC134682 states outright (section 4.1):
-  "Norway and Iceland form part of the EU ETS and are therefore not
-  affected by the CBAM." Norway is legally out of CBAM's scope, not
-  merely missing data.
-- `direct_ef` for aluminium secondary_recycled/TN: Tunisia is absent from
-  both sources' aluminium per-country tables. IR 2025/2621's own "Other
-  Countries and Territories" fallback (which would apply to Tunisia) is
-  tagged "(K) primary Aluminium" for CN 7601, not "(L) secondary" - so it
-  cannot honestly stand in for a secondary_recycled figure.
+  any country (confirmed by an exhaustive count, re-confirmed independently
+  by Task 9 against a freshly re-fetched copy: `grep -cF "(D)"` = 2, both
+  legend definitions) - Turkiye's own CN 7208 entry, and every other
+  country's, uses "(C) BF/BOF" instead. JRC134682 gives Turkiye only one
+  blended per-CN-code value, not a route-specific one (its own Step 3
+  methodology text says route-decomposed figures exist only for the
+  out-of-scope "weighted average", not named countries). This is not a
+  per-country gap - no country anywhere in either source has DRI/EAF-route
+  data, so there is no substitute country to swap in for this route.
 - `cbam_factor_year` for 2026: Directive 2003/87/EC Art. 10a(1a) gives a
   clean, quotable figure ("shall be equal to 97,5 % in 2026... 14 % in
   2033. From 2034, no CBAM factor shall apply") - but that "CBAM factor"
@@ -367,37 +388,38 @@ the exact fields named in the task-6 brief:**
   certificates for nearly their full emissions from year one - the
   opposite of the gradual phase-in the Directive describes. Deciding
   between 0.975 (the Directive's literal figure) and 0.025 (the
-  pre-existing convention) is a formula-direction question outside this
-  task's data-only scope, so it's left for the human partner rather than
-  guessed.
-- `reference_certificate_price` for 2026: the Commission's official price
-  page confirms real numbers - Q1 2026 = EUR 75.36 (published 7 April
-  2026), Q2 2026 = EUR 75.28 (published 6 July 2026) - but 2026 pricing is
-  explicitly quarterly ("In 2026, the Commission will calculate and
-  publish four quarterly prices, one for each calendar quarter"), and Q3/
-  Q4 aren't published yet as of this session's date (2026-09-08). The
-  `cbam.year.parameter` model holds one price per year; picking one
-  quarter (or an average of the two known so far) to stand in for "the"
-  2026 value is a modelling decision, not a data lookup, so it's left
-  open rather than decided unilaterally.
+  pre-existing convention) is a formula-direction question outside a
+  data-only task's scope (`calc_engine.py` must not be touched to resolve
+  it), so it's left for the human partner rather than guessed. Task 9 did
+  not attempt this - it was explicitly out of scope for that task too.
+  **Note for whoever picks this up next:** commit `db50c1f` ("Fix inverted
+  cbam_factor_year direction in certificate calculation", already on this
+  branch before Task 9 started) changed `calc_engine.py`'s formula itself
+  to `benchmark_deduction = benchmark * (1 - cbam_factor_year) * quantity_tonnes`
+  - which validates the codebase's pre-existing 0.025-for-2026 convention
+  as directionally correct (a LOW `cbam_factor_year` in early years now
+  correctly produces a LARGE deduction); the bug was in the formula, not
+  the data. That strongly suggests `cbam_factor_year` for 2026 should be
+  **0.025** (the complement of the Directive's literal 97.5%, matching
+  "phase-out factor" as this codebase names it) - but confirming that and
+  actually filling in the seed value is still a distinct task, not done
+  by Task 9 (it was never in that task's checklist), and is flagged here
+  rather than assumed.
 
 **Existing files, unchanged in shape:**
-- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). Every still-`None` field now carries a comment citing the exact primary-source finding that blocks it (see above), not just a TODO.
-- `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 7 items (5 `direct_ef`, 2 year-parameter fields) instead of all 15.
-- `seed_odoo(env, allow_incomplete=False)` - unchanged; still refuses to write to Odoo while any of those 7 remain `None`.
+- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). Every still-`None` field carries a comment citing the exact primary-source finding that blocks it (see above); every filled-in field carries a comment citing the exact source row it came from.
+- `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 2 items (`steel/EAF_DRI/TR: direct_ef`, `year_parameter 2026: cbam_factor_year`) instead of the 7 it returned after Task 6.
+- `seed_odoo(env, allow_incomplete=False)` - unchanged; still refuses to write to Odoo while either of those 2 remain `None`.
 - `main()` - unchanged standalone CLI using `odoorpc`.
-- `test_seed_emission_factors.py` (5 tests) - `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` now asserts the exact 7-item list above instead of "some placeholder exists".
+- `test_seed_emission_factors.py` (5 tests) - `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` now asserts the exact 2-item list above instead of the 7-item Task 6 list.
 
-**To actually finish this milestone:** get a human decision on the two
-`YearParameterSeed` fields (formula-direction for `cbam_factor_year`;
-which 2026 quarter's price, or an average, for `reference_certificate_price`),
-and either supply real DRI/EAF, Norway, and Tunisia-secondary-aluminium
-figures from a source not yet checked, or - more likely, given how
-thoroughly both primary sources were searched - replace those three
-placeholder country/route pairings with countries and routes that
-actually have CBAM default values (e.g. any of the ~170 countries IR
-2025/2621 does list for the DRI/EAF and secondary-aluminium routes).
-Full fetch-by-fetch record with exact quotes: `docs/m7-source-verification.md`.
+**To actually finish this milestone:** get a human decision on
+`cbam_factor_year`'s formula direction (0.975 vs 0.025 - see above); the
+steel EAF_DRI route has no real data to source from either primary source
+for any country, so finishing it would mean either accepting a different
+steel route as the DRI/EAF slot's stand-in (a modelling decision, not a
+data lookup) or leaving it permanently blocked. Full fetch-by-fetch
+record with exact quotes: `docs/m7-source-verification.md`.
 
 ---
 
