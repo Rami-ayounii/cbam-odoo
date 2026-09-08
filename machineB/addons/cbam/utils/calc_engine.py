@@ -111,8 +111,17 @@ def calculate_certificates_required(
 ) -> float:
     """CBAM certificates required, per Reg. (EU) 2023/956 Art. 9/31.
 
-    N = [SEE_total - (benchmark * CBAMFactor_year * Q)]
+    N = [SEE_total - (benchmark * (1 - CBAMFactor_year) * Q)]
     N_final = N * (1 - carbon_price_adjustment_fraction)
+
+    CBAMFactor_year is the CBAM phase-in percentage for the reporting year
+    (2.5% for 2026, rising to 100% by 2034, per Reg. (EU) 2023/956 Art. 31)
+    - it represents how much of the benchmark-based free-allocation
+    equivalent has been PHASED OUT, so (1 - CBAMFactor_year) is the
+    fraction STILL deducted: a small CBAMFactor_year (early years) means a
+    LARGE deduction and a correspondingly light certificate burden,
+    growing to a full deduction of zero (full certificate burden) once
+    CBAMFactor_year reaches 100% in 2034.
 
     carbon_price_adjustment_fraction is the verified carbon price already
     paid in the country of production, expressed as a fraction of the
@@ -124,7 +133,7 @@ def calculate_certificates_required(
     Never negative: a free-allocation or price deduction cannot create a
     negative certificate requirement.
     """
-    benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes
+    benchmark_deduction = benchmark * (1 - cbam_factor_year) * quantity_tonnes
     n = max(embedded_emissions_total - benchmark_deduction, 0.0)
 
     if reference_certificate_price > 0:

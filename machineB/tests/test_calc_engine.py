@@ -132,16 +132,19 @@ def test_certificates_no_benchmark_no_price_adjustment():
 
 
 def test_certificates_benchmark_deduction_applied():
-    # benchmark_deduction = 1.0 * 0.5 * 100 = 50
+    # Under the corrected formula, benchmark_deduction = benchmark * (1 -
+    # cbam_factor_year) * quantity. cbam_factor_year=0.3 -> 70% of the
+    # benchmark-based free-allocation-equivalent still applies:
+    # deduction = 1.0 * 0.7 * 100 = 70
     result = calculate_certificates_required(
         embedded_emissions_total=200.0,
         quantity_tonnes=100.0,
         benchmark=1.0,
-        cbam_factor_year=0.5,
+        cbam_factor_year=0.3,
         carbon_price_paid_origin=0.0,
         reference_certificate_price=80.0,
     )
-    assert result == pytest.approx(150.0)
+    assert result == pytest.approx(130.0)
 
 
 def test_certificates_carbon_price_paid_reduces_result_proportionally():
@@ -171,15 +174,46 @@ def test_certificates_price_adjustment_capped_at_full_deduction():
 
 
 def test_certificates_never_negative_when_benchmark_deduction_exceeds_total():
+    # cbam_factor_year=0.0 in the corrected formula means the FULL
+    # benchmark-based free-allocation-equivalent still applies (deduction =
+    # benchmark * 1.0 * quantity), which can exceed total embedded
+    # emissions - result must floor at 0, never go negative.
     result = calculate_certificates_required(
         embedded_emissions_total=50.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=0.0,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    assert result == pytest.approx(0.0)
+
+
+def test_certificates_low_year_factor_means_gentle_phase_in_burden():
+    # This is the fix's whole point: a LOW cbam_factor_year (early
+    # transition years, e.g. 2.5% for 2026) must produce a LOWER
+    # certificate burden than a HIGH cbam_factor_year (e.g. 100% by 2034)
+    # for the same emissions/benchmark/quantity - the phase-in must get
+    # more expensive over time, never less.
+    early_transition = calculate_certificates_required(
+        embedded_emissions_total=200.0,
+        quantity_tonnes=100.0,
+        benchmark=1.0,
+        cbam_factor_year=0.025,
+        carbon_price_paid_origin=0.0,
+        reference_certificate_price=80.0,
+    )
+    full_phase_out = calculate_certificates_required(
+        embedded_emissions_total=200.0,
         quantity_tonnes=100.0,
         benchmark=1.0,
         cbam_factor_year=1.0,
         carbon_price_paid_origin=0.0,
         reference_certificate_price=80.0,
     )
-    assert result == pytest.approx(0.0)
+    assert early_transition == pytest.approx(102.5)
+    assert full_phase_out == pytest.approx(200.0)
+    assert early_transition < full_phase_out
 
 
 def test_certificates_negative_carbon_price_paid_does_not_inflate_result():
