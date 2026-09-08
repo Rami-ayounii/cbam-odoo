@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Mechanism done, data blocked** | `2d89d37` |
+| M7 — Versioned emission factor data load | **Partially done, real data seeded for benchmarks/markup** — 2 EU ETS benchmarks + the 2026 markup rate are real and cited; 5 country/route emission factors and 2 year-parameter fields stay blocked for documented, evidence-based reasons (not a fetch failure) | `2a4deec` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy (model tool-calling limitation, not a harness bug) | `ceaf01c` |
 
@@ -297,40 +297,108 @@ Architectural compliance re-verified: the only tool-name branch in `agent_loop.p
 
 ---
 
-### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data BLOCKED)
+### M7 — Versioned emission factor data load (mechanism built 2026-07-30, real data partially seeded 2026-09-08, commit `2a4deec`)
 
-**Why blocked:** this milestone's actual deliverable is authoritative
-numbers, not code, and this sandbox cannot reliably get them. Tried, in
-order: (1) `WebFetch` on the EUR-Lex HTML page for IR 2025/2621 - returned
-empty content both times, on two different URL formats; (2) `WebFetch` on
-the JRC134682 PDF - saved the binary but the text layer is unusable
-(garbled output); (3) local PDF rendering via the `Read` tool - failed,
-`pdftoppm`/poppler-utils isn't installed here; (4) `WebSearch` for
-secondary-source numbers - got answers, but two independent search queries
-returned **contradicting numbers for the same regulation** (one claimed
-steel BF-BOF benchmark 1.530 tCO2/t, DRI/EAF 1.033, scrap EAF 0.288; a
-direct fetch of the actual cited article instead showed hot metal 1.248,
-EAF carbon steel 0.142, EAF high-alloy 0.176 - and didn't even mention the
-first set of figures). Given the project's own non-negotiable rule (never
-invent a number, verify against the primary text), I stopped rather than
-guess which secondary source to trust, and stopped before fetching from an
-unofficial PDF mirror (`api.pks.rs`) that isn't a defensible source anyway.
+**What changed since the last pass:** the prior session's fetch tooling
+failures (empty EUR-Lex fetches, a garbled JRC134682 text layer, no local
+`poppler`) did not reproduce this time. This session had `pdftotext`
+(poppler/xpdf) available, and downloaded the actual regulation PDFs
+directly with `curl` (bypassing `WebFetch`'s 10 MB cap - the EUR-Lex PDFs
+for these regulations run 1-41 MB) before extracting text locally with
+`pdftotext -raw`. That produced clean, directly-quotable primary text for
+three regulations, confirmed against the actual `ELI:` identifiers and
+article text embedded in each PDF, not a paraphrase or secondary source.
 
-**What got built instead, per your call to build the mechanism with
-placeholders:**
-- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses) for 5 emission-factor records (steel BF-BOF/FR, EAF_scrap/FR, EAF_DRI/TR; aluminium primary_electrolysis/NO, secondary_recycled/TN - TN chosen per `projecthandoff.md` §3's stated Tunisia relevance), one 2026 year-parameter record, and 2 good-benchmark records. **Every numeric field is `None`**, with an inline comment naming the exact primary source/table to pull the real value from.
-- `find_incomplete_seeds()` - lists every placeholder still outstanding.
-- `seed_odoo(env, allow_incomplete=False)` - **refuses to write to Odoo while any placeholder remains**, specifically so this can't accidentally seed a real declaration with fabricated numbers. `--allow-incomplete` exists only for testing the loading mechanism itself.
-- `main()` - standalone CLI using `odoorpc`, matching M6's connection pattern (not run inside Odoo's own process).
-- `test_seed_emission_factors.py` (5 tests, TDD'd) - every seed has a citation, `find_incomplete_seeds()` correctly flags the current all-placeholder state, `seed_odoo()` refuses by default and writes when explicitly overridden, and production-route records aren't duplicated across repeated runs.
+**What got verified and seeded (real, cited data):**
+- **EU ETS benchmarks** (`GOOD_BENCHMARK_SEEDS`): Commission Implementing
+  Regulation (EU) 2026/1412 of 26 June 2026, Annex "BENCHMARKS", confirmed
+  as the correct regulation number (its own text: "determining revised
+  benchmark values for free allocation of emission allowances for the
+  period from 2026 to 2030"). "Hot metal" row (used for CN 7208, steel) =
+  1.248 t CO2e/t; "Aluminium" row (CN 7601) = 1.423 t CO2e/t, both
+  "Benchmark value (allowances/t) for 2026-2030". This also resolves the
+  earlier open question of whether aluminium has a dedicated benchmark or
+  only the generic heat/fuel fallback - it has a dedicated one.
+- **2026 markup rate** (`markup_pct` on all 5 `EMISSION_FACTOR_SEEDS`):
+  Commission Implementing Regulation (EU) 2025/2621, Annex I - every
+  country's steel section is headed "Iron and steel 10% mark-up 20%
+  mark-up 30% mark-up" and every aluminium section "Aluminium 10%
+  mark-up 20% mark-up 30% mark-up" (2026/2027/2028-onwards columns),
+  confirmed identical across dozens of country blocks and in Annex IV.
+  Sector-wide, not country- or route-specific, so it applies regardless
+  of the direct_ef blockers below.
 
-**To actually finish this milestone:** open the primary sources directly
-(not through this sandbox's tooling) - JRC134682 PDF, EUR-Lex CELEX
-32025R2621, and the actual EU ETS benchmark regulation (Commission
-Implementing Regulation (EU) 2026/1412 per a verified-secondary-source
-mention, but confirm this number too) - and fill in each `None` in
-`seed_emission_factors.py`, updating `source_document` to drop the
-"PLACEHOLDER, not yet verified" suffix once confirmed.
+**What's still blocked, and why (evidence, not fetch failure) - these are
+the exact fields named in the task-6 brief:**
+- `direct_ef` for steel BF-BOF/FR and steel EAF_scrap/FR: France is not a
+  listed country in either JRC134682 or IR 2025/2621's Annex I (confirmed
+  by exhaustive search of both extracted documents - "France" never
+  appears as a data country). CBAM default values only exist for non-EU
+  countries of origin; France, an EU member, structurally never needs one.
+- `direct_ef` for steel EAF_DRI/TR: IR 2025/2621's Annex I legend defines
+  a "(D) Carbon Steel based on DRI/EAF" route indicator, but across the
+  entire ~2,400-page Annex I it is attached to zero actual data rows for
+  any country (confirmed by an exhaustive count) - Turkiye's own CN 7208
+  entry, and every other country's, uses "(C) BF/BOF" instead. JRC134682
+  gives Turkiye only one blended per-CN-code value, not a route-specific
+  one (its own Step 3 methodology text says route-decomposed figures
+  exist only for the out-of-scope "weighted average", not named
+  countries). No DRI/EAF-route CBAM default value exists in either source.
+- `direct_ef` for aluminium primary_electrolysis/NO: Norway is not listed
+  in IR 2025/2621's Annex I, and JRC134682 states outright (section 4.1):
+  "Norway and Iceland form part of the EU ETS and are therefore not
+  affected by the CBAM." Norway is legally out of CBAM's scope, not
+  merely missing data.
+- `direct_ef` for aluminium secondary_recycled/TN: Tunisia is absent from
+  both sources' aluminium per-country tables. IR 2025/2621's own "Other
+  Countries and Territories" fallback (which would apply to Tunisia) is
+  tagged "(K) primary Aluminium" for CN 7601, not "(L) secondary" - so it
+  cannot honestly stand in for a secondary_recycled figure.
+- `cbam_factor_year` for 2026: Directive 2003/87/EC Art. 10a(1a) gives a
+  clean, quotable figure ("shall be equal to 97,5 % in 2026... 14 % in
+  2033. From 2034, no CBAM factor shall apply") - but that "CBAM factor"
+  is the fraction of free allocation *retained*, while this codebase's
+  existing convention (`shared/data/dev_fixtures.py`, this doc's M2
+  section, the M4 plan) already uses 0.025 for 2026 - the complement,
+  rising the opposite direction. Plugged into
+  `calc_engine.calculate_certificates_required`'s actual formula
+  (`benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes`),
+  0.025 makes the deduction tiny in 2026, so importers would owe
+  certificates for nearly their full emissions from year one - the
+  opposite of the gradual phase-in the Directive describes. Deciding
+  between 0.975 (the Directive's literal figure) and 0.025 (the
+  pre-existing convention) is a formula-direction question outside this
+  task's data-only scope, so it's left for the human partner rather than
+  guessed.
+- `reference_certificate_price` for 2026: the Commission's official price
+  page confirms real numbers - Q1 2026 = EUR 75.36 (published 7 April
+  2026), Q2 2026 = EUR 75.28 (published 6 July 2026) - but 2026 pricing is
+  explicitly quarterly ("In 2026, the Commission will calculate and
+  publish four quarterly prices, one for each calendar quarter"), and Q3/
+  Q4 aren't published yet as of this session's date (2026-09-08). The
+  `cbam.year.parameter` model holds one price per year; picking one
+  quarter (or an average of the two known so far) to stand in for "the"
+  2026 value is a modelling decision, not a data lookup, so it's left
+  open rather than decided unilaterally.
+
+**Existing files, unchanged in shape:**
+- `shared/data/seed_emission_factors.py` - typed seed tables (`EmissionFactorSeed`, `YearParameterSeed`, `GoodBenchmarkSeed` dataclasses). Every still-`None` field now carries a comment citing the exact primary-source finding that blocks it (see above), not just a TODO.
+- `find_incomplete_seeds()` - lists every placeholder still outstanding; now returns 7 items (5 `direct_ef`, 2 year-parameter fields) instead of all 15.
+- `seed_odoo(env, allow_incomplete=False)` - unchanged; still refuses to write to Odoo while any of those 7 remain `None`.
+- `main()` - unchanged standalone CLI using `odoorpc`.
+- `test_seed_emission_factors.py` (5 tests) - `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` now asserts the exact 7-item list above instead of "some placeholder exists".
+
+**To actually finish this milestone:** get a human decision on the two
+`YearParameterSeed` fields (formula-direction for `cbam_factor_year`;
+which 2026 quarter's price, or an average, for `reference_certificate_price`),
+and either supply real DRI/EAF, Norway, and Tunisia-secondary-aluminium
+figures from a source not yet checked, or - more likely, given how
+thoroughly both primary sources were searched - replace those three
+placeholder country/route pairings with countries and routes that
+actually have CBAM default values (e.g. any of the ~170 countries IR
+2025/2621 does list for the DRI/EAF and secondary-aluminium routes).
+Full fetch-by-fetch record with exact quotes:
+`docs/superpowers/sdd/2026-09-08-project-completion-plan/task-6-report.md`.
 
 ---
 
