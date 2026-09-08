@@ -73,17 +73,23 @@ def test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields():
     # emission-factor records too, computing exactly zero certificates for
     # both (docs/PROGRESS.md's M7 section). Fixed at the schema level
     # (route added to GoodBenchmarkSeed, cbam.good.benchmark is now its own
-    # Odoo model keyed on good+route) - but the real benchmark VALUES for
-    # those two routes were not re-verified against a primary source this
-    # session, so both are now honestly BLOCKED (None) rather than silently
-    # wrong, alongside the pre-existing steel EAF_DRI direct_ef gap. This
-    # test names exactly those 3 and will start failing (usefully) the
-    # moment any one of them is filled in, or if a regression drops
+    # Odoo model keyed on good+route).
+    #
+    # A second follow-up session (2026-09-09) re-fetched IR 2026/1412 in
+    # full (all 3 Annex "BENCHMARKS" sections, 47 rows, not just grepped)
+    # and resolved steel EAF_scrap's benchmark for real: 0.142, a dedicated
+    # "EAF carbon steel" row distinct from "Hot metal" (1.248) - confirming
+    # the route-dimension fix mattered for a real number, not just
+    # defensively. aluminium secondary_recycled's benchmark stays blocked -
+    # the same full read confirmed no such row exists anywhere in the
+    # Annex, structurally absent from the source (not a fetch or search
+    # failure), the same category of gap as steel EAF_DRI's direct_ef. This
+    # test now names exactly those 2 remaining gaps and will start failing
+    # (usefully) the moment either is filled in, or if a regression drops
     # something that was already verified.
     incomplete = find_incomplete_seeds()
     assert incomplete == [
         "emission_factor steel/EAF_DRI/TR: direct_ef",
-        "good_benchmark steel/7208/EAF_scrap: benchmark",
         "good_benchmark aluminium/7601/secondary_recycled: benchmark",
     ]
 

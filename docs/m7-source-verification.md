@@ -806,3 +806,67 @@ in the only primary sources CBAM defines default values from (re-confirmed
 independently by both Task 6 and Task 9: the "(D)" DRI/EAF route indicator
 is defined in IR 2025/2621's legend but attached to zero data rows for any
 country in the entire regulation).
+
+## 2026-09-09 addendum: `GoodBenchmarkSeed` route-dimension gap - steel EAF_scrap resolved, aluminium secondary_recycled re-confirmed absent
+
+A separate follow-up session (2026-09-08, after this document's Task 11
+section above) found and fixed a real bug: `GoodBenchmarkSeed` keyed only
+on `(cn_code, sector)`, with no route dimension, so the BF-BOF "Hot metal"
+benchmark was silently being applied to the unrelated `steel EAF_scrap/AZ`
+emission-factor record, and the primary-electrolysis "Aluminium" benchmark
+to `aluminium secondary_recycled/TN` - both computing exactly zero
+certificates required as a result. That session fixed the schema
+(`cbam.good.benchmark` promoted to its own Odoo model, keyed on
+good+route) but deliberately left both routes' real benchmark VALUES as
+`None`/BLOCKED rather than guess, since IR 2026/1412's Annex "BENCHMARKS"
+had not been re-checked for route-specific entries.
+
+This session (2026-09-09) did that check.
+
+**Method:** re-fetched Commission Implementing Regulation (EU) 2026/1412
+directly from EUR-Lex - `curl -s -L "https://eur-lex.europa.eu/legal-
+content/EN/TXT/PDF/?uri=CELEX:32026R1412"` (556,779 bytes) -> `pdftotext
+-raw` -> 283 lines of clean text, confirmed genuine from its own text
+("COMMISSION IMPLEMENTING REGULATION (EU) 2026/1412 of 26 June 2026...",
+matching the citation already established in this document's main body).
+Unlike the earlier grep-for-a-specific-row approach, this session read the
+**entire** Annex "BENCHMARKS" table in full - all 3 sections, 47
+product-benchmark rows - to answer "does a route-specific entry exist"
+with a real yes-or-no rather than a targeted-search absence.
+
+**Resolved - steel EAF_scrap, `benchmark=0.142`:** Section 2 ("Product
+benchmarks with collection of data on electricity consumption") contains:
+
+```
+EAF carbon steel 0,130 0,142
+```
+
+("Average value of the 10% most efficient installations in 2021 and
+2022" = 0.130 t CO2eq/t; "Benchmark value (allowances/t) for 2026-2030" =
+0.142.) "EAF carbon steel" is the standard EU ETS product benchmark for
+electric-arc-furnace-based carbon steel (the system boundary is defined by
+reference to Annex I of Delegated Regulation (EU) 2019/331, which this
+Annex incorporates explicitly: "the definitions of products covered...
+shall apply") - a real, dedicated benchmark distinct from "Hot metal"
+(1.248), confirming the earlier session's route-dimension fix mattered for
+a real number (0.142 is roughly 9x lower than Hot metal, reflecting
+scrap-EAF steelmaking's genuinely much lower emissions intensity), not
+just a defensive schema change against a hypothetical.
+
+**Re-confirmed absent - aluminium secondary_recycled stays blocked:** the
+full 47-row table contains exactly one aluminium-related entry anywhere in
+the document - `Aluminium 1,489 1,423` in Section 1, the primary-
+electrolysis benchmark already seeded. No "secondary aluminium", "recycled
+aluminium", or any other aluminium row exists anywhere in the Annex. This
+is the same category of finding as steel EAF_DRI's `direct_ef` above:
+structurally absent from the source (confirmed by reading the complete
+table, not a search that might have missed a row), not a fetch failure and
+not something to guess at. `GoodBenchmarkSeed`'s aluminium/7601/
+secondary_recycled entry stays `benchmark=None`.
+
+**Updated tracking:** `find_incomplete_seeds()` now returns 2 items
+(previously 3): steel EAF_DRI's `direct_ef` (this document's main
+finding) and aluminium secondary_recycled's `benchmark` (this addendum).
+`shared/data/test_seed_emission_factors.py`'s
+`test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields`
+updated to match.

@@ -270,24 +270,26 @@ YEAR_PARAMETER_SEEDS: List[YearParameterSeed] = [
 ]
 
 GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
-    # ROUTE DIMENSION (schema fix, this session): GoodBenchmarkSeed used to key only on
-    # (cn_code, sector), so a single benchmark was applied uniformly to every route -
-    # concretely, the "Hot metal"/BF-BOF benchmark below was being applied to the
-    # steel EAF_scrap/AZ emission-factor record too, and the primary-aluminium benchmark
-    # to the aluminium secondary_recycled/TN record, silently zeroing out certificates
-    # for both (see docs/PROGRESS.md's M7 section for the numeric consequence that was
-    # found). Now keyed on (cn_code, sector, route): cbam.good.benchmark is its own
-    # Odoo model (good_id, production_route_id, benchmark), and
-    # cbam_declaration_line.py's _compute_good_benchmark_id looks it up by the line's
-    # actual installation route, not just its good. The two entries below (BF-BOF,
-    # primary_electrolysis) are unchanged, real, cited values. EAF_scrap and
-    # secondary_recycled get their own entries further down, honestly left at
-    # benchmark=None - IR 2026/1412's Annex "BENCHMARKS" was not re-checked this
-    # session for a dedicated scrap-EAF-steel or secondary-aluminium product benchmark
-    # (if one even exists; EU ETS free allocation does not cover every route with its
-    # own benchmark), so filling either in now would mean guessing, which
-    # projecthandoff.md section 2 explicitly forbids. find_incomplete_seeds() flags
-    # both; do not seed either into a real Odoo instance until resolved.
+    # ROUTE DIMENSION (schema fix, 2026-09-08 session): GoodBenchmarkSeed used to key
+    # only on (cn_code, sector), so a single benchmark was applied uniformly to every
+    # route - concretely, the "Hot metal"/BF-BOF benchmark below was being applied to
+    # the steel EAF_scrap/AZ emission-factor record too, and the primary-aluminium
+    # benchmark to the aluminium secondary_recycled/TN record, silently zeroing out
+    # certificates for both (see docs/PROGRESS.md's M7 section for the numeric
+    # consequence that was found). Now keyed on (cn_code, sector, route):
+    # cbam.good.benchmark is its own Odoo model (good_id, production_route_id,
+    # benchmark), and cbam_declaration_line.py's _compute_good_benchmark_id looks it
+    # up by the line's actual installation route, not just its good.
+    #
+    # Follow-up session (2026-09-09): re-fetched IR 2026/1412 in full and resolved
+    # steel EAF_scrap's benchmark for real (0.142, a dedicated "EAF carbon steel" row -
+    # see that entry below) - confirming the route-dimension fix's premise was correct,
+    # not just a defensive schema change. aluminium secondary_recycled's benchmark
+    # stays genuinely blocked - the same full read confirmed no such row exists
+    # anywhere in the Annex, structurally absent from the source (see that entry's
+    # own comment). find_incomplete_seeds() now flags only that one remaining gap here
+    # (plus steel EAF_DRI's direct_ef, unrelated) - do not seed the aluminium
+    # secondary_recycled row into a real Odoo instance until resolved.
     GoodBenchmarkSeed(
         cn_code="7208",
         sector="steel",
@@ -312,14 +314,24 @@ GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
         cn_code="7208",
         sector="steel",
         route="EAF_scrap",
-        benchmark=None,  # BLOCKED: not yet re-checked against IR 2026/1412's
-        # Annex "BENCHMARKS" for a dedicated scrap-EAF-steel product
-        # benchmark distinct from "Hot metal". Do not assume one exists or
-        # reuse "Hot metal" here - that reuse is exactly the bug this
-        # schema change fixes. Needs the same primary-source verification
-        # process Task 6/9/11 used for the emission factors (see
-        # docs/m7-source-verification.md) before this can be filled in.
-        source_document="BLOCKED: EU ETS product-benchmark applicability to the scrap-EAF steel route not yet verified against IR 2026/1412's Annex 'BENCHMARKS' - do not reuse the BF-BOF 'Hot metal' benchmark above for this route",
+        benchmark=0.142,  # VERIFIED (resolved this session): re-fetched
+        # Commission Implementing Regulation (EU) 2026/1412 directly from
+        # EUR-Lex (https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/
+        # ?uri=CELEX:32026R1412, 556,779 bytes) and extracted the full
+        # Annex "BENCHMARKS" text with `pdftotext -raw` (283 lines, all 3
+        # sections read in full, not just grepped). Section 2 ("Product
+        # benchmarks with collection of data on electricity consumption")
+        # has a dedicated "EAF carbon steel" row: "EAF carbon steel 0,130
+        # 0,142" (average of the 10% most efficient installations in
+        # 2021/2022 = 0.130; benchmark value (allowances/t) for 2026-2030
+        # = 0.142). This is the standard EU ETS product benchmark for
+        # electric-arc-furnace-based carbon steel (Annex I to Delegated
+        # Regulation (EU) 2019/331 defines the system boundary this Annex
+        # incorporates by reference) - a real, distinct benchmark from
+        # "Hot metal" (BF-BOF), confirming the route-dimension fix's
+        # premise: EAF_scrap genuinely has its own, much lower benchmark
+        # (0.142 vs Hot metal's 1.248), not a reuse.
+        source_document="Commission Implementing Regulation (EU) 2026/1412, Annex 'BENCHMARKS', Section 2 ('Product benchmarks with collection of data on electricity consumption'), 'EAF carbon steel' row, benchmark value (allowances/t) for 2026-2030 - route-specific to EAF_scrap",
     ),
     GoodBenchmarkSeed(
         cn_code="7601",
@@ -341,13 +353,23 @@ GOOD_BENCHMARK_SEEDS: List[GoodBenchmarkSeed] = [
         cn_code="7601",
         sector="aluminium",
         route="secondary_recycled",
-        benchmark=None,  # BLOCKED: same reasoning as steel EAF_scrap above.
-        # Secondary/recycled aluminium's real-world emissions intensity is
-        # far lower than primary electrolysis, so reusing the "Aluminium"
-        # benchmark above for this route would overstate the free-
-        # allocation deduction (the exact zero-certificate bug this schema
-        # change fixes) - needs its own primary-source check, not a reuse.
-        source_document="BLOCKED: EU ETS product-benchmark applicability to the secondary/recycled aluminium route not yet verified against IR 2026/1412's Annex 'BENCHMARKS' - do not reuse the primary-electrolysis 'Aluminium' benchmark above for this route",
+        benchmark=None,  # BLOCKED (re-confirmed this session, upgraded from
+        # "not yet checked" to "confirmed absent"): the same re-fetch and
+        # full read of IR 2026/1412's Annex "BENCHMARKS" that resolved
+        # steel EAF_scrap above (all 3 sections, 47 product-benchmark rows
+        # total, read in full - not just grepped for "aluminium") contains
+        # exactly one aluminium-related entry anywhere in the document:
+        # "Aluminium 1,489 1,423" in Section 1 (the primary-electrolysis
+        # benchmark already seeded above). No "secondary aluminium",
+        # "recycled aluminium", or any other aluminium row exists anywhere
+        # in the Annex. This is structurally absent from the source, not a
+        # fetch or search failure - the same category of gap as steel
+        # EAF_DRI's direct_ef (docs/m7-source-verification.md) - reusing
+        # the primary-electrolysis benchmark for this route remains wrong
+        # for the reason already documented (secondary aluminium's much
+        # lower real-world emissions intensity), so this stays None rather
+        # than guessed.
+        source_document="BLOCKED: re-fetched Commission Implementing Regulation (EU) 2026/1412 in full (EUR-Lex CELEX:32026R1412) and confirmed its Annex 'BENCHMARKS' (all 3 sections, 47 product-benchmark rows) contains no secondary/recycled-aluminium benchmark anywhere - only the primary-electrolysis 'Aluminium' row exists. Structurally absent from the source, not a fetch failure - do not reuse the primary-electrolysis benchmark above for this route.",
     ),
 ]
 

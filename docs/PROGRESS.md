@@ -16,7 +16,7 @@
 | M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
-| M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); the audit follow-up below also gave `cbam.good.benchmark` a real route dimension, honestly leaving 2 route-specific benchmark values blocked rather than silently wrong — `find_incomplete_seeds()` now returns 3 items, see "Independent audit + follow-up fixes" section | `2a4deec`, `c35dbbe`, `4923a9e` |
+| M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); `cbam.good.benchmark` gained a real route dimension ("Independent audit + follow-up fixes" section) and its steel EAF_scrap benchmark is now resolved too (0.142, a real "EAF carbon steel" row — see "M7 benchmark research" section); aluminium secondary_recycled's benchmark is re-confirmed genuinely absent from the source, not unchecked — `find_incomplete_seeds()` now returns 2 items | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
 | M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy originally; a long sequence of real, live-verified fixes (Agentic completion-gap follow-up, Field-accuracy root-cause investigation, MVP-focused follow-up, Real production-path verification, Value-carryover/temperature fix, Closing the actual-sourced extraction gap, Remembered-value carryover) got two specific hand-picked records to 3/3-correct, fully reproducible, real end-to-end writes — **but see "The honest broader-sample check" section: a small, genuinely unselected 5-record batch still scored 0/5**, confirming the underlying llama3.1:8b tool-calling reliability ceiling (M4's 50% valid-call rate) remains the dominant factor at scale. Mechanism demonstrably correct when the model cooperates; not yet reliable in general - a full 20+ record run is the concrete next step, still blocked by this machine's RAM | `ceaf01c` |
 
@@ -1464,6 +1464,45 @@ tried - remains the concrete next step for anyone who wants a real,
 statistically meaningful accuracy number rather than either of this
 session's two anecdotes (the encouraging hand-picked ones, or this
 section's discouraging unselected one).
+
+---
+
+## M7 benchmark research: steel EAF_scrap resolved (2026-09-09)
+
+At the human partner's request for primary-source research (not code) as
+the next milestone, following on from the "M7 benchmark route-dimension
+fix" (Independent audit + follow-up fixes section) - that fix corrected
+the *schema* but deliberately left both new route-specific benchmark
+VALUES as `None`/BLOCKED since IR 2026/1412's Annex "BENCHMARKS" had not
+been re-checked for route-specific entries beyond "Hot metal" and
+"Aluminium".
+
+Re-fetched the regulation directly (`curl` on EUR-Lex's CELEX PDF, 556,779
+bytes, same document already cited in this project's M7 work) and read
+its full Annex "BENCHMARKS" table end to end via `pdftotext -raw` - all 3
+sections, 47 product-benchmark rows, not just a targeted grep.
+
+**Resolved: steel EAF_scrap benchmark = 0.142** - a real, dedicated "EAF
+carbon steel" row exists in Section 2, distinct from "Hot metal" (1.248)
+by roughly 9x, correctly reflecting scrap-EAF steelmaking's much lower
+real-world emissions intensity. This is now seeded in
+`shared/data/seed_emission_factors.py` with a full citation.
+
+**Re-confirmed genuinely absent: aluminium secondary_recycled benchmark**
+- the complete 47-row table contains exactly one aluminium entry anywhere
+(the primary-electrolysis "Aluminium" row already seeded) - no secondary/
+recycled variant exists in this source. Upgraded from "not yet checked"
+to "confirmed absent by a full read", the same evidentiary standard as
+steel EAF_DRI's `direct_ef` gap. Stays `benchmark=None` - not guessed.
+
+`find_incomplete_seeds()` now returns 2 items (was 3): steel EAF_DRI's
+`direct_ef` and aluminium secondary_recycled's `benchmark`. Full
+derivation, exact quotes, and the complete extracted benchmark table:
+`docs/m7-source-verification.md`'s "2026-09-09 addendum" section.
+
+**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 142
+passed (no count change - one test's expected list shrank by one item,
+matching the resolved field; no other test's expectations changed).
 
 ---
 
