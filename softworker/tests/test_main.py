@@ -234,7 +234,8 @@ def test_run_job_reports_completed_when_the_model_actually_writes_a_result(monke
                                 "good_id": 5,
                                 "installation_id": 7,
                                 "quantity_tonnes": 10.0,
-                                "data_source": "actual",
+                                "data_source": "default",
+                                "emission_factor_id": 3,
                             },
                         )
                     ],

@@ -83,7 +83,21 @@ SYSTEM_PROMPT = (
     "names, not calculate_emissions' direct_ef/indirect_ef names. Do not "
     "call write_declaration_line with only embedded_emissions_total and "
     "leave everything else at zero - that discards the real values you "
-    "already found and writes an incorrect, empty-looking result."
+    "already found and writes an incorrect, empty-looking result. "
+    "Structure your own turns like this: if the previous tool result "
+    "taught you something (a real value, or that something is missing or "
+    "inconsistent), briefly reflect on that first, then state your "
+    "reasoning for what to do next - both go in your own message content, "
+    "before you call a tool, not inside the tool call itself. "
+    "Treat your final write_declaration_line call as a confirmation step, "
+    "not just another action: if this line's data_source is 'actual', you "
+    "must also supply source_quote - the exact sentence or phrase, copied "
+    "verbatim from extract_field's document_text, that "
+    "direct_emissions_actual or indirect_emissions_actual actually came "
+    "from. A paraphrase, a summary, or a quote you did not really read "
+    "from a document will be rejected and the write will fail. If you "
+    "cannot find a real sentence containing the figure, call "
+    "flag_for_human_review instead of inventing one."
 )
 
 app = FastAPI(title="CBAM Orchestrator")

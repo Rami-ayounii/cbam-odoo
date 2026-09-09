@@ -80,6 +80,27 @@ class WriteDeclarationLineArgs(BaseModel):
     emission_factor_id: Optional[int] = None
     carbon_price_paid_origin: float = 0.0
     precursor_emissions: float = 0.0
+    source_quote: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _source_quote_required_for_actual_source(self):
+        # Anti-hallucination gate for the two fields with the worst measured
+        # accuracy (docs/PROGRESS.md's field-accuracy investigation:
+        # direct_emissions_actual/indirect_emissions_actual at 7%, the only
+        # fields needing genuine document-text reading rather than a
+        # deterministic carried-over value). This only catches the cheap
+        # case (missing/empty); tools.py._write_declaration_line does the
+        # real check - is this actually a substring of document_text the
+        # model was shown this session - which needs session state this
+        # model has no access to.
+        if self.data_source == "actual" and not (self.source_quote or "").strip():
+            raise ValueError(
+                "source_quote is required and must be non-empty when "
+                "data_source is 'actual' - quote the exact sentence from "
+                "extract_field's document_text that the emissions figure "
+                "came from"
+            )
+        return self
 
     @model_validator(mode="after")
     def _emission_factor_required_for_default_source(self):

@@ -122,6 +122,12 @@ class ToolDispatcher:
         # as before, so a bad remembered value is rejected exactly as if
         # the model had typed it directly into write_declaration_line.
         self._remembered_write_fields = {}
+        # Every document_text extract_field has actually returned this job -
+        # see _write_declaration_line's grounding check below, the real
+        # (session-state-dependent) half of the source_quote anti-
+        # hallucination gate whose cheap/missing-value half lives in
+        # tool_args.py.
+        self._extracted_texts = []
         self._handlers = {
             "extract_field": self._extract_field,
             "lookup_default_value": self._lookup_default_value,
@@ -165,6 +171,7 @@ class ToolDispatcher:
         "indirect_emissions_actual",
         "carbon_price_paid_origin",
         "precursor_emissions",
+        "source_quote",
     )
 
     def execute(self, name, args):
@@ -219,6 +226,7 @@ class ToolDispatcher:
         text = self.odoo_client.get_source_document_text(
             document_id, expected_declaration_line_id=self.declaration_line_id
         )
+        self._extracted_texts.append(text)
         return {
             "document_id": document_id,
             "field_name": field_name,
@@ -325,6 +333,26 @@ class ToolDispatcher:
                 "job - refusing a second write (single write at the end, "
                 "per the design constraints)"
             )
+        # Grounding check for actual-sourced emissions data: source_quote
+        # (tool_args.py already rejected a missing/empty one) must be a real
+        # substring of something extract_field has actually returned this
+        # job - not just a plausible-looking string the model wrote. Popped
+        # out of data before the RPC call below since cbam.declaration.line
+        # has no source_quote field of its own; the quote is already
+        # captured for free in the full tool-call trace
+        # (cbam_source_document.raw_llm_output) via write_llm_trace.
+        source_quote = data.pop("source_quote", None)
+        if data.get("data_source") == "actual":
+            quote = (source_quote or "").strip()
+            if not quote or not any(quote in text for text in self._extracted_texts):
+                raise ValueError(
+                    "source_quote must be an exact, verbatim quote from "
+                    "document_text already returned by extract_field this "
+                    "job - it was missing, empty, or not found in anything "
+                    "actually extracted. Quote the exact sentence/phrase "
+                    "containing the emissions figure, or call "
+                    "flag_for_human_review if no such sentence exists."
+                )
         # No declaration_id mismatch check needed here: execute() above
         # always injects this job's own declaration_id before validation,
         # unconditionally overriding whatever the model supplied - a

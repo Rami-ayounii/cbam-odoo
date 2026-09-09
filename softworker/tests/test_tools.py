@@ -380,7 +380,10 @@ def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wro
     # own (direct_ef/indirect_ef) - a call that fails validation - and
     # never supplied those values to write_declaration_line at all. The
     # dispatcher must remember them from that failed call anyway.
-    odoo_client = FakeOdooClient(write_result_id=11)
+    odoo_client = FakeOdooClient(
+        document_text="Direct emissions measured at 2.172 t CO2e/t.",
+        write_result_id=11,
+    )
     dispatcher = _make_dispatcher(
         odoo_client,
         known_context={
@@ -390,6 +393,9 @@ def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wro
             "quantity_tonnes": 405.08,
         },
     )
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
     with pytest.raises(ValueError):
         dispatcher.execute(
             "calculate_emissions",
@@ -397,6 +403,7 @@ def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wro
                 "direct_emissions_actual": 2.172,
                 "indirect_emissions_actual": 0.079,
                 "carbon_price_paid_origin": 12.04,
+                "source_quote": "Direct emissions measured at 2.172 t CO2e/t.",
             },
         )
 
@@ -406,13 +413,17 @@ def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wro
     assert odoo_client.written["direct_emissions_actual"] == pytest.approx(2.172)
     assert odoo_client.written["indirect_emissions_actual"] == pytest.approx(0.079)
     assert odoo_client.written["carbon_price_paid_origin"] == pytest.approx(12.04)
+    assert "source_quote" not in odoo_client.written
 
 
 def test_write_declaration_line_prefers_its_own_explicit_value_over_a_remembered_one():
     # A value the model deliberately restates in the write call itself must
     # win over an earlier, possibly-stale remembered one - remembering only
     # fills genuine gaps, it never overrides.
-    odoo_client = FakeOdooClient(write_result_id=12)
+    odoo_client = FakeOdooClient(
+        document_text="Measured direct emissions: 1.9 t CO2e/t.",
+        write_result_id=12,
+    )
     dispatcher = _make_dispatcher(
         odoo_client,
         known_context={
@@ -422,13 +433,20 @@ def test_write_declaration_line_prefers_its_own_explicit_value_over_a_remembered
             "quantity_tonnes": 100.0,
         },
     )
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
     with pytest.raises(ValueError):
         dispatcher.execute(
             "calculate_emissions", {"direct_emissions_actual": 1.0}
         )
 
     result = dispatcher.execute(
-        "write_declaration_line", {"direct_emissions_actual": 1.9}
+        "write_declaration_line",
+        {
+            "direct_emissions_actual": 1.9,
+            "source_quote": "Measured direct emissions: 1.9 t CO2e/t.",
+        },
     )
 
     assert result["declaration_line_id"] == 12
@@ -557,8 +575,14 @@ def test_write_declaration_line_rejects_implausibly_high_actual_emissions():
 
 
 def test_write_declaration_line_allows_missing_emission_factor_id_for_actual_source():
-    odoo_client = FakeOdooClient(write_result_id=8)
+    odoo_client = FakeOdooClient(
+        document_text="Direct emissions of 1.9 t CO2e/t were measured.",
+        write_result_id=8,
+    )
     dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
 
     result = dispatcher.execute(
         "write_declaration_line",
@@ -569,6 +593,7 @@ def test_write_declaration_line_allows_missing_emission_factor_id_for_actual_sou
             "quantity_tonnes": 100.0,
             "data_source": "actual",
             "direct_emissions_actual": 1.9,
+            "source_quote": "Direct emissions of 1.9 t CO2e/t were measured.",
         },
     )
 
@@ -603,8 +628,14 @@ def test_write_declaration_line_ignores_a_mismatched_declaration_id():
     # behavior (raise on mismatch): a cross-declaration write via a
     # hallucinated/malicious declaration_id is now structurally impossible,
     # not just detected-and-rejected.
-    odoo_client = FakeOdooClient(write_result_id=7)
+    odoo_client = FakeOdooClient(
+        document_text="Direct emissions of 1.9 t CO2e/t were measured.",
+        write_result_id=7,
+    )
     dispatcher = _make_dispatcher(odoo_client, declaration_id=1)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
 
     result = dispatcher.execute(
         "write_declaration_line",
@@ -615,6 +646,7 @@ def test_write_declaration_line_ignores_a_mismatched_declaration_id():
             "quantity_tonnes": 100.0,
             "data_source": "actual",
             "direct_emissions_actual": 1.9,
+            "source_quote": "Direct emissions of 1.9 t CO2e/t were measured.",
         },
     )
 
@@ -629,7 +661,10 @@ def test_write_declaration_line_fills_in_known_context_fields():
     # only needs to supply what it genuinely determined (here,
     # direct_emissions_actual). Real traces showed llama3.1:8b repeatedly
     # omitting several of these required fields at once.
-    odoo_client = FakeOdooClient(write_result_id=9)
+    odoo_client = FakeOdooClient(
+        document_text="Direct emissions of 1.9 t CO2e/t were measured.",
+        write_result_id=9,
+    )
     dispatcher = _make_dispatcher(
         odoo_client,
         known_context={
@@ -639,9 +674,16 @@ def test_write_declaration_line_fills_in_known_context_fields():
             "data_source": "actual",
         },
     )
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
 
     result = dispatcher.execute(
-        "write_declaration_line", {"direct_emissions_actual": 1.9}
+        "write_declaration_line",
+        {
+            "direct_emissions_actual": 1.9,
+            "source_quote": "Direct emissions of 1.9 t CO2e/t were measured.",
+        },
     )
 
     assert result["declaration_line_id"] == 9
@@ -650,6 +692,106 @@ def test_write_declaration_line_fills_in_known_context_fields():
     assert odoo_client.written["quantity_tonnes"] == pytest.approx(41.88)
     assert odoo_client.written["data_source"] == "actual"
     assert odoo_client.written["direct_emissions_actual"] == pytest.approx(1.9)
+
+
+def test_write_declaration_line_rejects_missing_source_quote_for_actual_source():
+    # tool_args.py's cheap check: source_quote is required at all when
+    # data_source is "actual", regardless of whether extract_field was ever
+    # called this job.
+    dispatcher = _make_dispatcher(FakeOdooClient())
+
+    with pytest.raises(ValueError):
+        dispatcher.execute(
+            "write_declaration_line",
+            {
+                "declaration_id": 1,
+                "good_id": 2,
+                "installation_id": 3,
+                "quantity_tonnes": 100.0,
+                "data_source": "actual",
+                "direct_emissions_actual": 1.9,
+            },
+        )
+
+
+def test_write_declaration_line_rejects_a_source_quote_never_actually_extracted():
+    # tools.py's real grounding check: a plausible-looking quote is not
+    # enough - it must be a genuine substring of document_text extract_field
+    # actually returned this job. This is the anti-hallucination gate the
+    # 7%-accuracy direct_emissions_actual/indirect_emissions_actual fields
+    # (docs/PROGRESS.md's field-accuracy investigation) motivated.
+    odoo_client = FakeOdooClient(document_text="Quantity delivered: 120 tonnes.")
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "quantity_tonnes"}
+    )
+
+    with pytest.raises(ValueError):
+        dispatcher.execute(
+            "write_declaration_line",
+            {
+                "declaration_id": 1,
+                "good_id": 2,
+                "installation_id": 3,
+                "quantity_tonnes": 100.0,
+                "data_source": "actual",
+                "direct_emissions_actual": 1.9,
+                "source_quote": "Direct emissions measured at 1.9 t CO2e/t.",
+            },
+        )
+    assert odoo_client.written is None
+
+
+def test_write_declaration_line_accepts_a_source_quote_actually_extracted():
+    odoo_client = FakeOdooClient(
+        document_text="Report notes: Direct emissions measured at 1.9 t CO2e/t this period.",
+        write_result_id=13,
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "actual",
+            "direct_emissions_actual": 1.9,
+            "source_quote": "Direct emissions measured at 1.9 t CO2e/t this period.",
+        },
+    )
+
+    assert result["declaration_line_id"] == 13
+    assert odoo_client.written["direct_emissions_actual"] == pytest.approx(1.9)
+    assert "source_quote" not in odoo_client.written
+
+
+def test_write_declaration_line_does_not_require_source_quote_for_default_source():
+    odoo_client = FakeOdooClient(
+        emission_factors=[_make_factor(direct_ef=2.1, id=2)], write_result_id=14
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "lookup_default_value", {"sector": "steel", "route": "BF-BOF", "country": "FR"}
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "default",
+            "emission_factor_id": 2,
+        },
+    )
+
+    assert result["declaration_line_id"] == 14
 
 
 def test_unknown_tool_name_raises_value_error():
