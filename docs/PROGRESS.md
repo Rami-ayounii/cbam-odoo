@@ -13,7 +13,7 @@
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
 | M2 — Calculation engine | **Done** (certificate formula corrected later, see commit `db50c1f`) | `2d89d37` |
 | M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
-| M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real | `9d4851a` |
+| M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real; re-confirmed on the real fixed harness (2026-09-09) — `qwen2.5:7b-instruct` (the 40% runner-up) scored 10/10 exhausted, 0% accuracy, worse than `llama3.1:8b`'s real numbers on identical records, see "Model comparison" section | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); `cbam.good.benchmark` gained a real route dimension ("Independent audit + follow-up fixes" section) and its steel EAF_scrap benchmark is now resolved too (0.142, a real "EAF carbon steel" row — see "M7 benchmark research" section); aluminium secondary_recycled's benchmark is re-confirmed genuinely absent from the source, not unchecked — `find_incomplete_seeds()` now returns 2 items | `2a4deec`, `c35dbbe`, `4923a9e` |
@@ -1594,6 +1594,43 @@ harness - the comparison M4 never got to run fairly.
 
 **Verification:** no test suite changes in this section - this is a real
 live-infra run and a host-level config fix, not a code change.
+
+---
+
+## Model comparison: qwen2.5:7b-instruct vs. llama3.1:8b on the fixed harness (2026-09-09)
+
+Direct continuation, at the human partner's request to pursue the "next
+lever" the section above named: a different model against the now-fixed,
+now-memory-stable harness. M4's original raw tool-calling benchmark
+(`docs/model-benchmark.md`) had `qwen2.5:7b-instruct` as the closest
+runner-up to `llama3.1:8b` (40% vs. 50% valid-call rate) - worth checking
+against the real harness rather than trusting that raw number alone.
+
+Pulled `qwen2.5:7b-instruct` into the container's Ollama (4.7 GB,
+`docker exec project-completion-ollama-1 ollama pull qwen2.5:7b-instruct`)
+and ran the same 2 batches of 5 (records 0-9, same records, same fixes,
+same day) as `llama3.1:8b`'s full-20 run.
+
+**Result** (`docs/evaluation-qwen25-7b-2026-09-09.md`): **10 of 10 records
+exhausted** the full 9-iteration cap without ever calling
+`write_declaration_line` or `flag_for_human_review` - 0% field accuracy,
+and a *worse*, qualitatively different failure mode than `llama3.1:8b`'s
+mix of completed/escalated/exhausted on the identical records under the
+identical harness.
+
+**Conclusion:** M4's raw-benchmark ranking holds up on the real, fixed
+harness, by a wider margin than the raw 40%-vs-50% numbers alone
+suggested. `llama3.1:8b` remains the best-of-tested model for this
+project's tool schemas. At the human partner's choice, the comparison was
+concluded here rather than continuing to `qwen3:8b`/`qwen2.5:14b-instruct`
+(both scored 0% in M4's raw benchmark for a reason - emitting multiple
+tool calls per turn - that `agent_loop.py` may actually handle correctly,
+since it explicitly preserves the model's own multi-call ordering within
+a turn rather than rejecting it; this remains a real, unexplored
+possibility for a future session, not ruled out).
+
+**Verification:** no test suite changes - a real live-infra model
+comparison, not a code change.
 
 ---
 
