@@ -71,6 +71,18 @@ Hardworker (LLM host, has/may have GPU)          Softworker (Odoo host)
 - Config files already produced: `docker-compose.hardworker.yml`,
   `docker-compose.softworker.yml`, `nginx.conf`, `tailscale-acl-example.json`
   (attach these to the repo under `hardworker/` and `softworker/` respectively).
+- **Deviation, decided 2026-09-09 (see `docs/PROGRESS.md`):** the Softworker
+  no longer runs its own Tailscale sidecar container. The Tailscale admin
+  console's key-generation page produced auth keys the real control server
+  rejected outright (root cause not found, worth reporting to Tailscale
+  support); since the Softworker's physical host already had its own,
+  separately-authenticated Tailscale connection, `softworker/docker-compose.yml`
+  was changed to publish Odoo/orchestrator ports to the host instead of
+  joining a dedicated sidecar identity. Consequence: `tailscale-acl-example.json`'s
+  `tag:cbam-odoo-host`/`tag:cbam-llm-host` scheme does not apply to the
+  Softworker as actually deployed — reachability depends on whatever ACLs
+  apply to the host's own node. Revisit the sidecar approach once the admin
+  console issue is understood; nothing about the Hardworker side changed.
 
 ## 5. Repo structure (monorepo, decided)
 
@@ -265,9 +277,14 @@ executor.
 ## 11. Open items — not yet decided, answer these before/while coding
 
 - Exact hardware on Hardworker (GPU or not, VRAM) — determines model choice
-- Odoo version confirmed as 17? (assumed above, verify)
 - Whether any real (anonymized) supplier documents will be used for testing,
   or synthetic data only throughout
-- Sync vs async call pattern between orchestrator and Odoo UI — a tool-use
-  loop can take 20–90s (estimated, unmeasured); blocking sync calls may be
-  unusable in the Odoo UI, recommend async job + polling but not yet decided
+
+**Resolved since this doc was written:**
+- Odoo version — confirmed 17 (`"version": "17.0.1.0.0"` in
+  `softworker/addons/cbam/__manifest__.py`).
+- Sync vs async call pattern — resolved as recommended: `POST /jobs` returns
+  a `job_id` immediately, `GET /jobs/{job_id}/status` polls it, the agent
+  loop itself runs in a `BackgroundTasks` task. Routes are plain `def`, not
+  `async def` (FastAPI's threadpool handles that), so no `pytest-asyncio`
+  dependency was needed.
