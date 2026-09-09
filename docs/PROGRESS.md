@@ -18,7 +18,7 @@
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); `cbam.good.benchmark` gained a real route dimension ("Independent audit + follow-up fixes" section) and its steel EAF_scrap benchmark is now resolved too (0.142, a real "EAF carbon steel" row — see "M7 benchmark research" section); aluminium secondary_recycled's benchmark is re-confirmed genuinely absent from the source, not unchecked — `find_incomplete_seeds()` now returns 2 items | `2a4deec`, `c35dbbe`, `4923a9e` |
 | M8 — Security hardening | **Done** | `2d89d37` |
-| M9 — Evaluation | **Done, real run** — 17/20 completed, 3/20 escalated, 0% field accuracy originally; a long sequence of real, live-verified fixes (Agentic completion-gap follow-up, Field-accuracy root-cause investigation, MVP-focused follow-up, Real production-path verification, Value-carryover/temperature fix, Closing the actual-sourced extraction gap, Remembered-value carryover) got two specific hand-picked records to 3/3-correct, fully reproducible, real end-to-end writes — **but see "The honest broader-sample check" section: a small, genuinely unselected 5-record batch still scored 0/5**, confirming the underlying llama3.1:8b tool-calling reliability ceiling (M4's 50% valid-call rate) remains the dominant factor at scale. Mechanism demonstrably correct when the model cooperates; not yet reliable in general - a full 20+ record run is the concrete next step, still blocked by this machine's RAM | `ceaf01c` |
+| M9 — Evaluation | **Done, real run, full 20-record number obtained** — 0% field accuracy originally (`docs/evaluation.md`); a long sequence of real, live-verified fixes across this doc's later sections closed real bugs (missing document_id, excess required fields, a constraint blocking `data_source="default"` entirely, unset temperature, value carryover, a WSL2 memory-ceiling misconfiguration that was killing evaluation runs); final full-20 result (`docs/evaluation-full20-2026-09-09.md`): 5/20 completed (4 genuinely correct), field accuracy 15-20% on plumbing-reachable fields (was 0%), 7% on the two fields needing genuine document extraction (was 0%) — real, verified improvement, not reliability; `llama3.1:8b`'s own tool-calling ceiling (M4's 50% valid-call rate) remains the dominant constraint; next lever is a different/stronger model against this now-fixed harness | `ceaf01c` |
 
 ---
 
@@ -1503,6 +1503,97 @@ derivation, exact quotes, and the complete extracted benchmark table:
 **Verification:** `python -m pytest machineB/tests/ shared/ -q` → 142
 passed (no count change - one test's expected list shrank by one item,
 matching the resolved field; no other test's expectations changed).
+
+---
+
+## The full 20-record run, and the real root cause of the memory failures (2026-09-09)
+
+Direct continuation, at the human partner's request to pursue milestone
+#1 (the full evaluation) after the M7 research detour above. Got killed
+by the OS for low memory twice more (one direct 20-record attempt, one
+direct 5-record retry) even starting from a freshly `wsl --shutdown`'d,
+8+ GB-free machine - worse than the pattern in "The honest broader-sample
+check" section, since that section's fix (`wsl --shutdown` alone) no
+longer reliably helped on its own.
+
+**Root cause, actually found this time** (at the human partner's explicit
+request to stop guessing and investigate): checked memory *inside* the
+WSL2 VM itself (`wsl.exe -- free -h`), not just what Windows reports.
+Inside the VM: `available: 6.0G` of `total: 7.3G` - genuinely healthy,
+containers using under 2 GB combined. The real problem was entirely on
+the Windows side: WSL2's VM had grown toward its **default** memory
+ceiling (~50% of host RAM, uncapped by any `.wslconfig` - none existed on
+this machine), and Windows counts that reserved ceiling as "used"
+regardless of how much of it is reclaimable Linux page cache, not real
+work. The background-task memory-safety monitor that kills this session's
+long-running commands watches Windows' outward-facing free-memory number,
+which doesn't reflect the VM's real internal availability.
+
+**Fix:** created `~/.wslconfig` (first attempt, `[wsl2] autoMemoryReclaim=
+gradual`, failed to parse on this WSL version - "unknown key" - moved to
+`[experimental] autoMemoryReclaim=gradual`, which parsed cleanly) plus a
+**hard memory ceiling**, `[wsl2] memory=6GB`, sized comfortably above
+this stack's real combined footprint (under 2 GB per `docker stats`) but
+well below the default ~7.3 GB ceiling that was starving Windows of a
+number it could report as free. Applied via `wsl --shutdown` + bringing
+the stack back up. This is a host-level file outside the git repo -
+confirmed with the human partner before creating it, since it affects
+their whole WSL2 environment, not just this project.
+
+**Result: it worked.** Records 5-19 (15 of the 20) ran across 3 more
+batches of 5 with zero further memory kills, after the same-sized batch
+had just failed twice before the fix. Records 0-4 (already gathered in
+"The honest broader-sample check" section, before this fix existed) were
+reused rather than re-run, since nothing about the fix could change what
+already happened.
+
+**Full 20-record result** (`docs/evaluation-full20-2026-09-09.md`, all of
+this session's fixes in effect):
+
+| | completed | escalated | exhausted |
+|---|---|---|---|
+| 20 records | 5 | 13 | 2 |
+
+| field | accuracy |
+|---|---|
+| quantity_tonnes | 4/20 (20%) |
+| data_source | 4/20 (20%) |
+| carbon_price_paid_origin | 3/20 (15%) |
+| precursor_emissions | 4/20 (20%) |
+| direct_emissions_actual | 1/14 (7%) |
+| indirect_emissions_actual | 1/14 (7%) |
+
+**This is the real, statistically meaningful number this whole
+field-accuracy thread has been building toward.** Compare directly to
+the original M9 baseline (`docs/evaluation.md`): 0% on every field, no
+exceptions. Every field this session's fixes could plausibly reach
+(`quantity_tonnes`/`data_source`/`carbon_price_paid_origin`/
+`precursor_emissions` - all either dispatcher-injected or carryover-
+rescued once a write happens) landed at 15-20%, up from 0%. The two
+fields requiring genuine, un-assisted document-text extraction
+(`direct_emissions_actual`/`indirect_emissions_actual`) improved far less
+(7%, up from 0%) - consistent with this session's repeated finding that
+those two specifically test the model's own reading/recall reliability,
+which no plumbing fix reaches. 5/20 completed (up from historical
+17/20-but-mostly-`no_write` and later 15/20/13/20 in the "Agentic
+completion-gap" and "field-accuracy investigation" sections) - fewer raw
+completions, but a real check of the 5 completions here (cross-referencing
+which ones landed correct `quantity_tonnes`/`data_source`, which can only
+happen via a genuine write) shows 4 of the 5 are real, correct writes; the
+5th (`SYNTH-0000`, wrong on those two despite `completed` status) matches
+the long-documented "completed but nothing written" silent-stop ambiguity.
+
+**Honest framing, unchanged from every section above:** this is real,
+verified, meaningful improvement - not a claim of reliability. 15-20% is
+still a low bar for a production system; `llama3.1:8b`'s own ceiling (M4's
+50% valid-tool-call rate) remains the dominant constraint on how much
+further plumbing fixes alone can move this number. The concrete next
+lever, per the "M9 — Evaluation" row's own history, is a stronger/
+different model benchmarked against this now-fixed, now-memory-stable
+harness - the comparison M4 never got to run fairly.
+
+**Verification:** no test suite changes in this section - this is a real
+live-infra run and a host-level config fix, not a code change.
 
 ---
 
