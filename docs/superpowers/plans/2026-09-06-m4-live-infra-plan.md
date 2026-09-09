@@ -2,28 +2,28 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace every mocked/never-run boundary in the CBAM project (M4's LLM container, M3's live Odoo install, M6's live agent-loop run, M9's real evaluation numbers) with real, evidenced infra runs on this machine (Machine A: RTX 5070, 12GB VRAM), leaving M7 (real emission-factor numbers) untouched for a separate session.
+**Goal:** Replace every mocked/never-run boundary in the CBAM project (M4's LLM container, M3's live Odoo install, M6's live agent-loop run, M9's real evaluation numbers) with real, evidenced infra runs on this machine (Hardworker: RTX 5070, 12GB VRAM), leaving M7 (real emission-factor numbers) untouched for a separate session.
 
-**Architecture:** This machine plays Machine A for the model benchmark, then hosts a single disposable local-dev Docker stack (Ollama + nginx gate + Postgres + Odoo + orchestrator, all on one bridge network, no Tailscale) that stands in for the full two-machine topology until Machine B is reachable. The real `machineA/docker-compose.yml` / `machineB/docker-compose.yml` files are never modified.
+**Architecture:** This machine plays Hardworker for the model benchmark, then hosts a single disposable local-dev Docker stack (Ollama + nginx gate + Postgres + Odoo + orchestrator, all on one bridge network, no Tailscale) that stands in for the full two-machine topology until Softworker is reachable. The real `hardworker/docker-compose.yml` / `softworker/docker-compose.yml` files are never modified.
 
 **Tech Stack:** Docker Desktop (Windows, WSL2 backend), native `ollama` CLI, Odoo 17 + PostgreSQL 16 (official images), FastAPI orchestrator (existing code), `pytest`, `odoorpc`, `openai` client.
 
 ## Global Constraints
 
 - No LangChain / AutoGen / CrewAI — plain `openai` client against Ollama's `/v1` endpoint only.
-- Zero tool-ordering business logic added anywhere in `machineB/orchestrator/` — any new code there may add context/data, never an `if step == ...` sequencing branch.
+- Zero tool-ordering business logic added anywhere in `softworker/orchestrator/` — any new code there may add context/data, never an `if step == ...` sequencing branch.
 - Deterministic calc engine stays untouched — no LLM ever computes a compliance number.
 - Steel & aluminium: direct emissions only (no `indirect_ef` in any compliance total).
 - Versioned emission factors only — no hardcoded factor in any `.py` file outside a file explicitly named/labeled as dev-fixture or test data.
 - Iteration cap stays 8–10; exhaustion still auto-escalates via `flag_for_human_review`.
 - Every numeric value introduced in this plan for dev/testing purposes must be clearly labeled as fake (e.g. `"DEV FIXTURE - fake round numbers, NOT real CBAM data"` in a `source_document`/comment) and must never be written by `shared/data/seed_emission_factors.py` or presented as a real CBAM figure. M7's real-data seed file and its "refuse while placeholders remain" behavior are not touched.
-- 108 existing tests (`pytest machineB/tests/ shared/ -q`) must keep passing unchanged after every task.
+- 108 existing tests (`pytest softworker/tests/ shared/ -q`) must keep passing unchanged after every task.
 
 ## Known deviation from the approved design spec (`docs/superpowers/specs/2026-09-06-m4-live-infra-design.md`)
 
-The spec called for bringing up the real `machineA/docker-compose.yml` (with its Tailscale sidecar) unmodified. Investigation for this plan found **Tailscale is not installed on this machine at all**, and the spec's own non-goals already exclude standing up the real cross-machine mesh this session (Machine B unreachable). Provisioning a real Tailscale account/authkey just to run a single-host loopback test would add a real external dependency for zero verification value today.
+The spec called for bringing up the real `hardworker/docker-compose.yml` (with its Tailscale sidecar) unmodified. Investigation for this plan found **Tailscale is not installed on this hardworkert all**, and the spec's own non-goals already exclude standing up the real cross-machine mesh this session (Softworker unreachable). Provisioning a real Tailscale account/authkey just to run a single-host loopback test would add a real external dependency for zero verification value today.
 
-Instead, Task 3 below builds **one** `docker-compose.local-dev.yml` containing Ollama + nginx (reusing `machineA/nginx.conf.template` byte-for-byte, so the API-key gate itself is genuinely exercised) + Postgres + Odoo + orchestrator, all on a single Docker bridge network addressed by service name — no Tailscale anywhere. Real cross-machine Tailscale verification is deferred to whenever Machine B is reachable; the real `machineA/`/`machineB/` compose files are not touched by this plan.
+Instead, Task 3 below builds **one** `docker-compose.local-dev.yml` containing Ollama + nginx (reusing `hardworker/nginx.conf.template` byte-for-byte, so the API-key gate itself is genuinely exercised) + Postgres + Odoo + orchestrator, all on a single Docker bridge network addressed by service name — no Tailscale anywhere. Real cross-machine Tailscale verification is deferred to whenever Softworker is reachable; the real `hardworker/`/`softworker/` compose files are not touched by this plan.
 
 ---
 
@@ -71,7 +71,7 @@ No commit needed for this task (no files changed) — just carry the GPU-passthr
 - Create (generated by running the script for real): `docs/model-benchmark.md`
 
 **Interfaces:**
-- Consumes: `tool_args.TOOL_ARG_MODELS` (`machineB/orchestrator/tool_args.py`, already on `sys.path` via `shared/evaluation/conftest.py`) — dict of tool name → Pydantic model, used both as the canonical list of 7 tool names and to validate a candidate model's tool-call arguments.
+- Consumes: `tool_args.TOOL_ARG_MODELS` (`softworker/orchestrator/tool_args.py`, already on `sys.path` via `shared/evaluation/conftest.py`) — dict of tool name → Pydantic model, used both as the canonical list of 7 tool names and to validate a candidate model's tool-call arguments.
 - Consumes: `shared/tool_schemas/*.json` (7 files, `{name, description, parameters}` each).
 - Produces: `AttemptResult`, `BenchmarkResult` dataclasses and `run_benchmark(client, model, messages, tool_schemas, attempts) -> BenchmarkResult`, `build_report_markdown(results: List[BenchmarkResult]) -> str` — used only within this file and by the live run in Step 6, not consumed by any other task.
 
@@ -315,7 +315,7 @@ def build_report_markdown(results: List[BenchmarkResult]) -> str:
         "document (shared/synthetic_data/output/) and asked to make progress "
         "on processing it. A tool call is 'valid' only if it names a real "
         "tool and its arguments pass that tool's exact production Pydantic "
-        "validation (machineB/orchestrator/tool_args.py).",
+        "validation (softworker/orchestrator/tool_args.py).",
         "",
     ]
     for r in sorted(results, key=lambda r: -r.valid_rate):
@@ -437,7 +437,7 @@ EOF
 - Create: `.env.local-dev.example` (repo root)
 
 **Interfaces:**
-- Consumes: `machineA/nginx.conf.template` (unmodified), `machineB/orchestrator/Dockerfile` (unmodified, build context `.`), `machineB/addons/cbam/` (mounted read-only into the Odoo container).
+- Consumes: `hardworker/nginx.conf.template` (unmodified), `softworker/orchestrator/Dockerfile` (unmodified, build context `.`), `softworker/addons/cbam/` (mounted read-only into the Odoo container).
 - Produces: running services reachable at `localhost:8443` (nginx→Ollama gate), `localhost:8069` (Odoo), `localhost:8000` (orchestrator) — consumed by Task 4 (Odoo install), Task 6 (real M6 run).
 
 - [ ] **Step 1: Write `.env.local-dev.example`**
@@ -464,13 +464,13 @@ ORCHESTRATOR_API_KEY=replace-with-strong-key
 # LOCAL-DEV / SINGLE-MACHINE STACK - NOT THE REAL DEPLOYMENT TOPOLOGY.
 #
 # The real architecture is two machines joined over Tailscale - see
-# machineA/docker-compose.yml and machineB/docker-compose.yml. This file
+# hardworker/docker-compose.yml and softworker/docker-compose.yml. This file
 # exists purely so M3 (Odoo module install)/M6 (agent loop)/M9 (evaluation)
 # can be exercised against real Odoo + real Ollama on a single host, when a
 # second machine isn't reachable. No Tailscale anywhere here: every service
 # talks to every other one directly by Docker Compose service name on one
 # bridge network. nginx.conf.template is reused byte-for-byte from
-# machineA/ so the real API-key gate logic is still genuinely verified, even
+# hardworker/ so the real API-key gate logic is still genuinely verified, even
 # though it isn't running behind the real Tailscale sidecar here.
 #
 # Usage: docker compose -f docker-compose.local-dev.yml --env-file .env.local-dev up -d
@@ -497,7 +497,7 @@ services:
     environment:
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     volumes:
-      - ./machineA/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./hardworker/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
     ports:
       - "8443:8443"
     depends_on: [ollama]
@@ -522,7 +522,7 @@ services:
       - PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - odoo-data-local-dev:/var/lib/odoo
-      - ./machineB/addons:/mnt/extra-addons:ro
+      - ./softworker/addons:/mnt/extra-addons:ro
     ports:
       - "8069:8069"
     networks: [local-dev]
@@ -530,7 +530,7 @@ services:
   orchestrator:
     build:
       context: .
-      dockerfile: machineB/orchestrator/Dockerfile
+      dockerfile: softworker/orchestrator/Dockerfile
     depends_on: [odoo, nginx]
     environment:
       - OLLAMA_BASE_URL=http://nginx:8443
@@ -611,10 +611,10 @@ EOF
 - Create: `scripts/init_local_dev_odoo.py`
 
 **Interfaces:**
-- Consumes: `calc_engine.EmissionFactor` (`machineB/addons/cbam/utils/calc_engine.py`, reachable via `shared/data/`'s existing `sys.path` trick — see `shared/data/test_seed_emission_factors.py` for the pattern, or add a local `conftest.py` under `shared/data/` mirroring `shared/evaluation/conftest.py` if one doesn't already add `UTILS_DIR`).
+- Consumes: `calc_engine.EmissionFactor` (`softworker/addons/cbam/utils/calc_engine.py`, reachable via `shared/data/`'s existing `sys.path` trick — see `shared/data/test_seed_emission_factors.py` for the pattern, or add a local `conftest.py` under `shared/data/` mirroring `shared/evaluation/conftest.py` if one doesn't already add `UTILS_DIR`).
 - Produces: `DEV_EMISSION_FACTOR_FIXTURES`, `build_emission_factor_session()` (consumed by Task 7's real M9 run), `seed_dev_fixtures_odoo(env) -> dict` with keys `good_ids` (by sector), `installation_ids` (by `(sector, route, country)`), `declarant_partner_id` (consumed by Task 6), and `create_dev_declaration_line_with_document(env, declarant_partner_id, reporting_year, good_id, installation_id, quantity_tonnes, document_text, filename="synthetic-doc.txt") -> (declaration_id, declaration_line_id)` (consumed by Task 6).
 
-First, check whether `shared/data/` already has a `conftest.py` putting `machineB/addons/cbam/utils` on `sys.path` (needed to `import calc_engine` as a bare module, same trick used everywhere else in this repo):
+First, check whether `shared/data/` already has a `conftest.py` putting `softworker/addons/cbam/utils` on `sys.path` (needed to `import calc_engine` as a bare module, same trick used everywhere else in this repo):
 
 ```bash
 cat shared/data/conftest.py 2>/dev/null || echo "MISSING"
@@ -628,7 +628,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-UTILS_DIR = REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"
+UTILS_DIR = REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"
 
 if str(UTILS_DIR) not in sys.path:
     sys.path.insert(0, str(UTILS_DIR))
@@ -949,7 +949,7 @@ from pathlib import Path
 import requests
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"))
+sys.path.insert(0, str(REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"))
 sys.path.insert(0, str(REPO_ROOT / "shared" / "data"))
 
 import odoorpc  # noqa: E402
@@ -1025,18 +1025,18 @@ export ODOO_PASSWORD=<the value from .env.local-dev>
 python scripts/init_local_dev_odoo.py
 ```
 
-Expected: `button_immediate_install()` completes without a traceback, and the final print line shows real `good_ids`/`installation_ids`/`declarant_partner_id` values. **This is the actual M3 live-verification moment** — if Odoo's module loader raises anything (a missing `ondelete`, a bad view reference, a manifest data-file typo), fix it directly in `machineB/addons/cbam/` (views/models/security as needed), re-run `docker compose -f docker-compose.local-dev.yml restart odoo` and this script, and repeat until it installs cleanly. Record whatever was actually broken and how it was fixed — do not skip past a real traceback.
+Expected: `button_immediate_install()` completes without a traceback, and the final print line shows real `good_ids`/`installation_ids`/`declarant_partner_id` values. **This is the actual M3 live-verification moment** — if Odoo's module loader raises anything (a missing `ondelete`, a bad view reference, a manifest data-file typo), fix it directly in `softworker/addons/cbam/` (views/models/security as needed), re-run `docker compose -f docker-compose.local-dev.yml restart odoo` and this script, and repeat until it installs cleanly. Record whatever was actually broken and how it was fixed — do not skip past a real traceback.
 
 - [ ] **Step 7: Re-run the full test suite to confirm no regression from any M3 fix**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS (108+ tests — count grows only if a Step 6 fix needed a new regression test)
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add shared/data/dev_fixtures.py shared/data/test_dev_fixtures.py shared/data/conftest.py scripts/init_local_dev_odoo.py
-git add machineB/addons/cbam  # only if Step 6 required real fixes
+git add softworker/addons/cbam  # only if Step 6 required real fixes
 git commit -m "$(cat <<'EOF'
 Add dev fixtures + Odoo bring-up script; fix real module-install issues found live (M3)
 
@@ -1053,10 +1053,10 @@ EOF
 **Why this task exists:** `main.py`'s `_run_job` currently sends the model only bare IDs (`"Process declaration_id=1 declaration_line_id=2."`). But `cbam.declaration.line`'s `good_id`/`installation_id`/`quantity_tonnes` are required fields **already set before the job starts** (a human creates the line and attaches the document first — see `projecthandoff.md` section 7's data flow). There is no tool that lets the model discover a good's CN code or an installation's country, so without this fix `write_declaration_line`'s required `good_id`/`installation_id` are things the model can only guess at. This is a real structural gap, not a live-infra flake, found by re-reading `main.py`/`tools.py`/the tool schemas together — fixing it now, before Task 6's live run, is cheaper than discovering it mid-run.
 
 **Files:**
-- Modify: `machineB/orchestrator/odoo_client.py`
-- Modify: `machineB/orchestrator/main.py`
-- Test: `machineB/tests/test_odoo_client.py` (new)
-- Modify: `machineB/tests/test_main.py`
+- Modify: `softworker/orchestrator/odoo_client.py`
+- Modify: `softworker/orchestrator/main.py`
+- Test: `softworker/tests/test_odoo_client.py` (new)
+- Modify: `softworker/tests/test_main.py`
 
 **Interfaces:**
 - Produces: `OdooClient.get_declaration_line_context(declaration_line_id) -> dict` with keys `declaration_id`, `reporting_year`, `good_id`, `good_cn_code`, `good_sector`, `installation_id`, `installation_name`, `installation_country`, `production_route`, `quantity_tonnes`, `data_source` — consumed by `main.py`'s `_run_job` and by Task 6's live run (to sanity-check what the model was told).
@@ -1064,7 +1064,7 @@ EOF
 - [ ] **Step 1: Write the failing test for `OdooClient`**
 
 ```python
-# machineB/tests/test_odoo_client.py
+# softworker/tests/test_odoo_client.py
 from odoo_client import OdooClient
 
 
@@ -1132,7 +1132,7 @@ def test_get_declaration_line_context_reads_nested_fields():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd machineB/tests && python -m pytest test_odoo_client.py -v`
+Run: `cd softworker/tests && python -m pytest test_odoo_client.py -v`
 Expected: FAIL with `AttributeError: 'OdooClient' object has no attribute 'get_declaration_line_context'`
 
 - [ ] **Step 3: Implement it in `odoo_client.py`**
@@ -1164,12 +1164,12 @@ Add this method to `OdooClient` (after `get_emission_factor_session`, before `wr
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd machineB/tests && python -m pytest test_odoo_client.py -v`
+Run: `cd softworker/tests && python -m pytest test_odoo_client.py -v`
 Expected: PASS
 
 - [ ] **Step 5: Write the failing test for `main.py`'s user message**
 
-Add to `machineB/tests/test_main.py`:
+Add to `softworker/tests/test_main.py`:
 
 ```python
 def test_run_job_includes_declaration_line_context_in_initial_user_message(monkeypatch):
@@ -1212,7 +1212,7 @@ def test_run_job_includes_declaration_line_context_in_initial_user_message(monke
 
 - [ ] **Step 6: Run test to verify it fails**
 
-Run: `cd machineB/tests && python -m pytest test_main.py::test_run_job_includes_declaration_line_context_in_initial_user_message -v`
+Run: `cd softworker/tests && python -m pytest test_main.py::test_run_job_includes_declaration_line_context_in_initial_user_message -v`
 Expected: FAIL — the current message string has no JSON context in it.
 
 - [ ] **Step 7: Implement it in `main.py`**
@@ -1240,13 +1240,13 @@ In `_run_job`, replace the `messages = [...]` construction with:
 
 - [ ] **Step 8: Run all orchestrator tests to verify everything passes**
 
-Run: `python -m pytest machineB/tests/ -q`
+Run: `python -m pytest softworker/tests/ -q`
 Expected: PASS (108 + 2 new = 110)
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add machineB/orchestrator/odoo_client.py machineB/orchestrator/main.py machineB/tests/test_odoo_client.py machineB/tests/test_main.py
+git add softworker/orchestrator/odoo_client.py softworker/orchestrator/main.py softworker/tests/test_odoo_client.py softworker/tests/test_main.py
 git commit -m "$(cat <<'EOF'
 Give the agent loop the declaration line's existing good/installation context
 
@@ -1289,7 +1289,7 @@ from pathlib import Path
 import requests
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"))
+sys.path.insert(0, str(REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"))
 sys.path.insert(0, str(REPO_ROOT / "shared" / "data"))
 
 import odoorpc  # noqa: E402
@@ -1398,14 +1398,14 @@ Expected: prints a final job status JSON with `status` one of `completed` / `esc
 
 - [ ] **Step 3: Re-run the full test suite to confirm no regression**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add scripts/run_m6_live_smoke_test.py docs/m6-live-verification.md
-git add machineB/orchestrator machineB/tests  # only if Step 2 required real bug fixes
+git add softworker/orchestrator softworker/tests  # only if Step 2 required real bug fixes
 git commit -m "$(cat <<'EOF'
 Add M6 live smoke test script; capture first real end-to-end agent-loop run
 
@@ -1530,7 +1530,7 @@ Expected: real console output + `docs/evaluation.md` written with genuine status
 
 - [ ] **Step 6: Re-run the full test suite to confirm no regression**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS
 
 - [ ] **Step 7: Commit**
@@ -1565,7 +1565,7 @@ Following the exact style of the existing "Full-codebase verification & bug-fix 
 
 - [ ] **Step 3: Final full-suite verification**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, report the final count.
 
 - [ ] **Step 4: Commit**

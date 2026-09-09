@@ -98,7 +98,7 @@ class JobRequest(BaseModel):
 
 
 def _require_api_key(x_api_key: Optional[str] = Header(None)) -> None:
-    # Unlike Machine A's nginx gate (a request-time template variable
+    # Unlike Hardworker's nginx gate (a request-time template variable
     # substitution, so a naive string `if` there is the only option), this
     # runs in real Python - secrets.compare_digest is a constant-time
     # comparison, closing the timing-attack gap the nginx layer accepted.
@@ -159,7 +159,7 @@ def _redact_secrets(text: str) -> str:
 
 def _odoo_connection_params():
     """Parses ODOO_URL (e.g. http://127.0.0.1:8069, matching
-    machineB/docker-compose.yml's orchestrator service, which shares the
+    softworker/docker-compose.yml's orchestrator service, which shares the
     odoo container's network namespace via the tailscale sidecar) into the
     host/port/protocol odoorpc.ODOO() expects."""
     parsed = urlparse(os.environ["ODOO_URL"])

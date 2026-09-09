@@ -6,7 +6,7 @@
 
 **Architecture:** No architectural change. Every task either (a) fixes or hardens the existing FastAPI orchestrator / Odoo `cbam` addon / agent loop in place, (b) fills in already-scaffolded data with real, cited values, or (c) runs already-built verification scripts against real infrastructure. Nothing here introduces a new service, a new dependency category, or a new tool.
 
-**Tech Stack:** Python 3.14, FastAPI, Pydantic, `openai` client → Ollama `/v1`, `odoorpc`, pytest, Docker Compose (`docker-compose.local-dev.yml` for Tasks 1–6, the real `machineA/`/`machineB/docker-compose.yml` for Task 7).
+**Tech Stack:** Python 3.14, FastAPI, Pydantic, `openai` client → Ollama `/v1`, `odoorpc`, pytest, Docker Compose (`docker-compose.local-dev.yml` for Tasks 1–6, the real `hardworker/`/`softworker/docker-compose.yml` for Task 7).
 
 **Spec:** `docs/PROGRESS.md` (progress ledger and the authoritative "Key Constraints" section) and `projecthandoff.md` (original design brief, section 7 especially — "The agentic layer — this is the part that must be built correctly"). No new spec/design doc was written for this plan; both files above are the governing documents this plan argues from.
 
@@ -21,7 +21,7 @@ Copied verbatim from `docs/PROGRESS.md`'s "Key Constraints (do not change)" sect
 - **Versioned emission factors** — never hardcoded; always queried with `valid_from`/`valid_to` filter.
 - **50 t/year exemption** — `is_exempt()` must be called before any certificate calculation.
 - **Iteration cap** — 8–10 iterations max; exhaustion → auto-call `flag_for_human_review`.
-- **108+ existing tests** (`pytest machineB/tests/ shared/ -q`) must keep passing, unchanged in expectation, after every task unless a task's own steps say a specific assertion is expected to change (Task 1 does, explicitly — see below).
+- **108+ existing tests** (`pytest softworker/tests/ shared/ -q`) must keep passing, unchanged in expectation, after every task unless a task's own steps say a specific assertion is expected to change (Task 1 does, explicitly — see below).
 
 **A sharper restatement of "zero business logic in the orchestrator," because Tasks 1 and 4 sit right on its edge:** the rule bans code that decides tool ORDER — an `if step == "extract" then call X` sequencing branch that takes the decision away from the model. It does not ban the orchestrator from correctly classifying an outcome the model already produced. `agent_loop.py` already has one such classification exception, and it is the model of what's allowed: detecting `flag_for_human_review` by name is "a loop termination signal the model itself raised, not a workflow step" (see `agent_loop.py`'s own module docstring). `tools.py`'s one-shot write guard is the same shape: "it doesn't say what may run before or after `write_declaration_line`, it only refuses to repeat the one side-effecting action itself." Task 1 below adds a third exception of the identical shape — classifying "the model stopped and never wrote a result" distinctly from "the model stopped after writing a result" — and it belongs in `main.py`, the CBAM-domain-aware file, never in `agent_loop.py`, which must stay domain-agnostic (it doesn't know what `write_declaration_line` even means, and must go on not knowing). Task 4 (the prompt/tool-description strengthening) must not cross this line at all: it changes text content the model reads, never code the model's choices flow through.
 
@@ -30,19 +30,19 @@ Copied verbatim from `docs/PROGRESS.md`'s "Key Constraints (do not change)" sect
 ### Task 1: Stop reporting "completed" for a job that never wrote a result
 
 **Files:**
-- Modify: `machineB/orchestrator/tools.py` (add a read-only property)
-- Modify: `machineB/orchestrator/main.py` (reclassify the outcome; update the status→extraction_status map)
-- Test: `machineB/tests/test_main.py` (fix one existing test that currently encodes the bug; add one new test for the genuine-completion path this fix must not break)
+- Modify: `softworker/orchestrator/tools.py` (add a read-only property)
+- Modify: `softworker/orchestrator/main.py` (reclassify the outcome; update the status→extraction_status map)
+- Test: `softworker/tests/test_main.py` (fix one existing test that currently encodes the bug; add one new test for the genuine-completion path this fix must not break)
 
 **Interfaces:**
-- Consumes: `ToolDispatcher._declaration_line_written` (`machineB/orchestrator/tools.py:60`, already set to `True` inside `_write_declaration_line` — this task only exposes it).
+- Consumes: `ToolDispatcher._declaration_line_written` (`softworker/orchestrator/tools.py:60`, already set to `True` inside `_write_declaration_line` — this task only exposes it).
 - Produces: `ToolDispatcher.declaration_line_written` (public bool property) — consumed by `main.py`'s `_run_job`. `main.py`'s `_JOBS[job_id]["status"]` can now hold a fourth value, `"no_write"`, alongside the existing `"completed"` / `"escalated"` / `"exhausted"` / `"failed"` — consumed by any future Odoo-side polling code and by Task 4's live re-verification, which should now see honest labels instead of a false `"completed"`.
 
 This is the real bug the September live pass surfaced and the final whole-branch review flagged as a backlog item (M6's live run: `llama3.1:8b` called `calculate_emissions` with all-zero arguments, then stopped — and the job was reported `completed` with `extraction_status="extracted"`, even though nothing was ever written to the declaration line).
 
 - [ ] **Step 1: Write the failing tests**
 
-Open `machineB/tests/test_main.py`. Find `test_run_job_writes_audit_trail_on_completion` (currently asserts `status == "completed"` for a job whose fake LLM client — `_FakeLLMClientNoToolCalls` — never calls any tool at all, i.e. never writes anything). That assertion describes exactly the bug this task fixes, so it is being split into two tests: one for the real bug (no write ever happened) and one new test proving a genuine write-then-stop is still correctly reported as `"completed"`.
+Open `softworker/tests/test_main.py`. Find `test_run_job_writes_audit_trail_on_completion` (currently asserts `status == "completed"` for a job whose fake LLM client — `_FakeLLMClientNoToolCalls` — never calls any tool at all, i.e. never writes anything). That assertion describes exactly the bug this task fixes, so it is being split into two tests: one for the real bug (no write ever happened) and one new test proving a genuine write-then-stop is still correctly reported as `"completed"`.
 
 Replace the existing test with these two:
 
@@ -135,16 +135,16 @@ def test_run_job_reports_completed_when_the_model_actually_writes_a_result(monke
     assert captured["extraction_status"] == "extracted"
 ```
 
-Add `from types import SimpleNamespace` to `machineB/tests/test_main.py`'s imports if it isn't already there (check the top of the file first — `test_agent_loop.py` uses a `FakeToolCall`/`FakeLLMResponse` dataclass pair instead, but `test_main.py` doesn't import `agent_loop`'s fakes, so `SimpleNamespace` is the simplest way to build a duck-typed response here without adding a new import from another test module).
+Add `from types import SimpleNamespace` to `softworker/tests/test_main.py`'s imports if it isn't already there (check the top of the file first — `test_agent_loop.py` uses a `FakeToolCall`/`FakeLLMResponse` dataclass pair instead, but `test_main.py` doesn't import `agent_loop`'s fakes, so `SimpleNamespace` is the simplest way to build a duck-typed response here without adding a new import from another test module).
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest machineB/tests/test_main.py -v -k "no_write or actually_writes"`
+Run: `python -m pytest softworker/tests/test_main.py -v -k "no_write or actually_writes"`
 Expected: `test_run_job_reports_no_write_when_the_model_stops_without_writing` FAILS (`assert 'completed' == 'no_write'`); `test_run_job_reports_completed_when_the_model_actually_writes_a_result` currently PASSES already (the bug only affects the no-write path) — that's fine, it's here to lock in the correct behavior going forward, not to prove a regression.
 
 - [ ] **Step 3: Expose the write-tracking flag on `ToolDispatcher`**
 
-In `machineB/orchestrator/tools.py`, immediately after the `__init__` method's closing `}` (right before `def execute(self, name, args):`), add:
+In `softworker/orchestrator/tools.py`, immediately after the `__init__` method's closing `}` (right before `def execute(self, name, args):`), add:
 
 ```python
     @property
@@ -154,7 +154,7 @@ In `machineB/orchestrator/tools.py`, immediately after the `__init__` method's c
 
 - [ ] **Step 4: Reclassify the outcome in `main.py`**
 
-In `machineB/orchestrator/main.py`, update the status map (around line 105):
+In `softworker/orchestrator/main.py`, update the status map (around line 105):
 
 ```python
 _EXTRACTION_STATUS_BY_LOOP_STATUS = {
@@ -220,16 +220,16 @@ with:
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `python -m pytest machineB/tests/test_main.py -v -k "no_write or actually_writes"`
+Run: `python -m pytest softworker/tests/test_main.py -v -k "no_write or actually_writes"`
 Expected: both PASS.
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, same count as before this task (this task replaces one test with two, net +1; no other test's expected value changes — `_EXTRACTION_STATUS_BY_LOOP_STATUS` gained a key, it didn't change any existing one).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add machineB/orchestrator/tools.py machineB/orchestrator/main.py machineB/tests/test_main.py
+git add softworker/orchestrator/tools.py softworker/orchestrator/main.py softworker/tests/test_main.py
 git commit -m "$(cat <<'EOF'
 Reclassify a job that stops without writing as no_write, not completed
 
@@ -354,8 +354,8 @@ EOF
 In `shared/evaluation/run_real_evaluation.py`, replace:
 
 ```python
-_UTILS_DIR = _REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"
-_ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
+_UTILS_DIR = _REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"
+_ORCHESTRATOR_DIR = _REPO_ROOT / "softworker" / "orchestrator"
 _DATA_DIR = _REPO_ROOT / "shared" / "data"
 for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _DATA_DIR):
 ```
@@ -363,8 +363,8 @@ for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _DATA_DIR):
 with:
 
 ```python
-_UTILS_DIR = _REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"
-_ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
+_UTILS_DIR = _REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"
+_ORCHESTRATOR_DIR = _REPO_ROOT / "softworker" / "orchestrator"
 _SHARED_DATA_DIR = _REPO_ROOT / "shared" / "data"
 for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _SHARED_DATA_DIR):
 ```
@@ -373,12 +373,12 @@ Leave the later `DATA_DIR = Path(__file__).resolve().parent.parent / "synthetic_
 
 - [ ] **Step 2: Verify nothing else referenced the old name**
 
-Run: `grep -rn "_DATA_DIR" shared/ machineB/`
+Run: `grep -rn "_DATA_DIR" shared/ softworker/`
 Expected: only the two occurrences just edited (the assignment and the `for _path in (...)` tuple) — no other file references `run_real_evaluation._DATA_DIR`.
 
 - [ ] **Step 3: Run the full suite**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, unchanged count (this file has no dedicated import-order test — `test_run_real_evaluation.py` tests `build_llm_client_factory`, not the sys.path bootstrap itself).
 
 - [ ] **Step 4: Commit**
@@ -399,17 +399,17 @@ EOF
 ### Task 4: Regression-test the live-discovered `X-Api-Key` auth fix
 
 **Files:**
-- Modify: `machineB/tests/test_llm_client.py`
+- Modify: `softworker/tests/test_llm_client.py`
 
 **Interfaces:**
-- Consumes: `LLMClient.__init__` (`machineB/orchestrator/llm_client.py:41`) — specifically the `OpenAI(...)` construction branch taken when no `client=` override is passed, which every existing test in this file bypasses by injecting a fake client directly.
+- Consumes: `LLMClient.__init__` (`softworker/orchestrator/llm_client.py:41`) — specifically the `OpenAI(...)` construction branch taken when no `client=` override is passed, which every existing test in this file bypasses by injecting a fake client directly.
 - Produces: nothing new — this is coverage for existing behavior (the `default_headers={"X-Api-Key": api_key}` fix from the September live pass), not a new feature.
 
 Every existing `test_llm_client.py` test constructs `LLMClient(client=FakeOpenAIClient(...))`, which skips the real `OpenAI(...)` constructor entirely — the exact branch where the `X-Api-Key` header is set. That branch currently has zero test coverage; the only thing that ever verified it was the live M6 run itself. This task closes that gap with a real unit test, no live infra required.
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `machineB/tests/test_llm_client.py` (place it near the top, after the existing fakes, since it needs its own fake `OpenAI` class rather than `FakeOpenAIClient`):
+Add to `softworker/tests/test_llm_client.py` (place it near the top, after the existing fakes, since it needs its own fake `OpenAI` class rather than `FakeOpenAIClient`):
 
 ```python
 class _CapturingOpenAIConstructor:
@@ -445,7 +445,7 @@ def test_omits_default_headers_when_no_api_key_given(monkeypatch):
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest machineB/tests/test_llm_client.py -v -k "x_api_key or omits_default_headers"`
+Run: `python -m pytest softworker/tests/test_llm_client.py -v -k "x_api_key or omits_default_headers"`
 Expected: both currently PASS already, since `llm_client.py`'s fix already exists (this is coverage for already-fixed, already-shipped behavior, not a new fix) — confirm this explicitly rather than assuming: if either test somehow fails, that means the header fix has regressed since the September pass, which would itself be a real, more urgent bug to stop and investigate before continuing this task.
 
 - [ ] **Step 3: (No implementation step — behavior already exists)**
@@ -454,13 +454,13 @@ Nothing to implement. If Step 2 passed as expected, skip straight to Step 4.
 
 - [ ] **Step 4: Run the full suite**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, count +2 from this task.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add machineB/tests/test_llm_client.py
+git add softworker/tests/test_llm_client.py
 git commit -m "$(cat <<'EOF'
 Add regression coverage for the live-discovered X-Api-Key header fix
 
@@ -477,9 +477,9 @@ EOF
 ### Task 5: Strengthen the agent's guidance toward completion, and re-verify live
 
 **Files:**
-- Modify: `machineB/orchestrator/main.py` (the `SYSTEM_PROMPT` string only)
+- Modify: `softworker/orchestrator/main.py` (the `SYSTEM_PROMPT` string only)
 - Modify: `shared/tool_schemas/write_declaration_line.json` (the `description` field only)
-- Test: `machineB/tests/test_main.py` (regression-guard the new required prompt language)
+- Test: `softworker/tests/test_main.py` (regression-guard the new required prompt language)
 - Test: `shared/tool_schemas/test_tool_schemas.py` (regression-guard the new required schema language)
 - Create (generated by running the script for real): a new `docs/evaluation-*.md` file, dated at run time
 
@@ -491,7 +491,7 @@ EOF
 
 - [ ] **Step 1: Write the failing regression tests for the new required language**
 
-Add to `machineB/tests/test_main.py`:
+Add to `softworker/tests/test_main.py`:
 
 ```python
 def test_system_prompt_states_the_job_is_not_done_without_a_write():
@@ -509,12 +509,12 @@ def test_write_declaration_line_description_states_it_is_the_completion_signal()
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest machineB/tests/test_main.py shared/tool_schemas/test_tool_schemas.py -v -k "not_finished or completion_signal"`
+Run: `python -m pytest softworker/tests/test_main.py shared/tool_schemas/test_tool_schemas.py -v -k "not_finished or completion_signal"`
 Expected: both FAIL (`AssertionError`) — the current prompt/schema text doesn't contain either phrase yet.
 
 - [ ] **Step 3: Strengthen the `SYSTEM_PROMPT`**
 
-In `machineB/orchestrator/main.py`, replace the `SYSTEM_PROMPT` definition:
+In `softworker/orchestrator/main.py`, replace the `SYSTEM_PROMPT` definition:
 
 ```python
 SYSTEM_PROMPT = (
@@ -579,21 +579,21 @@ with:
 
 - [ ] **Step 5: Verify no orchestrator business logic was touched**
 
-Run: `git diff --stat machineB/orchestrator/agent_loop.py machineB/orchestrator/tools.py`
+Run: `git diff --stat softworker/orchestrator/agent_loop.py softworker/orchestrator/tools.py`
 Expected: empty output (no changes to either file in this task). If this shows any output, stop - something in this task strayed outside prompt/schema text, which is exactly what this task exists to avoid.
 
 - [ ] **Step 6: Run tests to verify they pass**
 
-Run: `python -m pytest machineB/tests/test_main.py shared/tool_schemas/test_tool_schemas.py -v -k "not_finished or completion_signal"`
+Run: `python -m pytest softworker/tests/test_main.py shared/tool_schemas/test_tool_schemas.py -v -k "not_finished or completion_signal"`
 Expected: both PASS.
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
-Expected: PASS, count +2 from this task, no other test's expected value changed (the two new assertions only check for substrings; no existing test asserts the exact old `SYSTEM_PROMPT` or `write_declaration_line.json` text verbatim - confirm this with `grep -rn "SYSTEM_PROMPT ==" machineB/tests/` and `grep -rn '"description"' shared/tool_schemas/test_tool_schemas.py` before proceeding, and if either turns up a verbatim-equality assertion, update it to check for the new required substring the same way the new tests do rather than the exact old string).
+Run: `python -m pytest softworker/tests/ shared/ -q`
+Expected: PASS, count +2 from this task, no other test's expected value changed (the two new assertions only check for substrings; no existing test asserts the exact old `SYSTEM_PROMPT` or `write_declaration_line.json` text verbatim - confirm this with `grep -rn "SYSTEM_PROMPT ==" softworker/tests/` and `grep -rn '"description"' shared/tool_schemas/test_tool_schemas.py` before proceeding, and if either turns up a verbatim-equality assertion, update it to check for the new required substring the same way the new tests do rather than the exact old string).
 
 - [ ] **Step 7: Commit the prompt/schema change and its tests**
 
 ```bash
-git add machineB/orchestrator/main.py shared/tool_schemas/write_declaration_line.json machineB/tests/test_main.py shared/tool_schemas/test_tool_schemas.py
+git add softworker/orchestrator/main.py shared/tool_schemas/write_declaration_line.json softworker/tests/test_main.py shared/tool_schemas/test_tool_schemas.py
 git commit -m "$(cat <<'EOF'
 Strengthen SYSTEM_PROMPT and write_declaration_line's description toward completion
 
@@ -638,7 +638,7 @@ Expected: the script writes `docs/evaluation-prompt-v2-<date>.md` and prints the
 
 - [ ] **Step 11: Re-run the full test suite one more time**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS (no regressions from bringing the stack up/down or the live run itself, which touches no repo files other than the two new dated docs from Steps 9 and 10).
 
 - [ ] **Step 12: Document the result in `docs/PROGRESS.md`**
@@ -713,7 +713,7 @@ Expected: `test_find_incomplete_seeds_flags_all_current_placeholders` will now F
 
 - [ ] **Step 5: Seed a real Odoo instance and verify end to end**
 
-This step needs a running Odoo instance - reuse `docker-compose.local-dev.yml` from the September pass if it's still the available stack, or the real `machineB/docker-compose.yml` if Task 7 below has already brought that up. `shared/data/seed_emission_factors.py`'s `main()` reads `ODOO_URL`/`ODOO_DB`/`ODOO_USER`/`ODOO_PASSWORD` from the environment (it parses `ODOO_URL` with `urlparse` to get host/port/scheme) and takes exactly one CLI flag, `--allow-incomplete`, which must NOT be passed here:
+This step needs a running Odoo instance - reuse `docker-compose.local-dev.yml` from the September pass if it's still the available stack, or the real `softworker/docker-compose.yml` if Task 7 below has already brought that up. `shared/data/seed_emission_factors.py`'s `main()` reads `ODOO_URL`/`ODOO_DB`/`ODOO_USER`/`ODOO_PASSWORD` from the environment (it parses `ODOO_URL` with `urlparse` to get host/port/scheme) and takes exactly one CLI flag, `--allow-incomplete`, which must NOT be passed here:
 
 ```bash
 export ODOO_URL=http://localhost:8069
@@ -727,7 +727,7 @@ Expected: `main()` calls `seed_odoo(odoo.env, allow_incomplete=False)` (the defa
 
 - [ ] **Step 6: Re-run the full suite**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, no regressions (the two test files affected are `shared/data/test_seed_emission_factors.py`, already re-verified in Step 4).
 
 - [ ] **Step 7: Commit**
@@ -765,10 +765,10 @@ EOF
 **Files:** none (infra verification only, mirroring Task 1 of `docs/superpowers/plans/2026-09-06-m4-live-infra-plan.md` in shape) — a `docs/PROGRESS.md` update at the end.
 
 **Interfaces:**
-- Consumes: `machineA/docker-compose.yml`, `machineB/docker-compose.yml`, `machineA/nginx.conf.template`, `tailscale-acl-example.json` (all already committed, unmodified since M0).
+- Consumes: `hardworker/docker-compose.yml`, `softworker/docker-compose.yml`, `hardworker/nginx.conf.template`, `tailscale-acl-example.json` (all already committed, unmodified since M0).
 - Produces: closes the "Machine topology deviation" documented in `docs/PROGRESS.md`'s "Live infra verification pass" section - the real cross-machine mesh, verified for real, replacing the `docker-compose.local-dev.yml` stand-in Tasks 3–6 above still depend on.
 
-**Precondition, likely to BLOCK this task exactly like Task 1 of the September plan did:** this requires Tailscale installed on this host, a real second machine (Machine B) reachable on the tailnet, and a `TS_AUTHKEY` for both. If any of these isn't available when this task starts, stop immediately - do not attempt a partial workaround (a single-host stand-in already exists and is out of scope to rebuild here) - and escalate to the human partner naming exactly which precondition is missing, the same way Task 1 of the earlier plan escalated the missing WSL2 install rather than guessing around it.
+**Precondition, likely to BLOCK this task exactly like Task 1 of the September plan did:** this requires Tailscale installed on this host, a real second machine (Softworker) reachable on the tailnet, and a `TS_AUTHKEY` for both. If any of these isn't available when this task starts, stop immediately - do not attempt a partial workaround (a single-host stand-in already exists and is out of scope to rebuild here) - and escalate to the human partner naming exactly which precondition is missing, the same way Task 1 of the earlier plan escalated the missing WSL2 install rather than guessing around it.
 
 - [ ] **Step 1: Confirm the precondition**
 
@@ -777,12 +777,12 @@ which tailscale || echo "NOT INSTALLED"
 tailscale status 2>&1
 ```
 
-Expected: `tailscale` is installed and `tailscale status` shows this machine on a tailnet with at least one other reachable device (the intended Machine B). If either check fails, stop here and escalate per the precondition note above.
+Expected: `tailscale` is installed and `tailscale status` shows this machine on a tailnet with at least one other reachable device (the intended Softworker). If either check fails, stop here and escalate per the precondition note above.
 
-- [ ] **Step 2: Bring up the real Machine A stack**
+- [ ] **Step 2: Bring up the real Hardworker stack**
 
 ```bash
-cd machineA
+cd hardworker
 cp .env.example .env   # then fill in real TS_AUTHKEY, OLLAMA_API_KEY values
 docker compose up -d
 docker compose ps
@@ -790,47 +790,47 @@ docker compose ps
 
 Expected: all services `Up`, including the `tailscale` sidecar. Record the Tailscale IP/hostname `tailscale status` reports for this machine.
 
-- [ ] **Step 3: Bring up the real Machine B stack**
+- [ ] **Step 3: Bring up the real Softworker stack**
 
-On Machine B (or this host if it is the intended Machine B - adjust which stack runs where to match whichever machine actually has the GPU, per the original design's flexibility on that point):
+On Softworker (or this host if it is the intended Softworker - adjust which stack runs where to match whichever hardworkerctually has the GPU, per the original design's flexibility on that point):
 
 ```bash
-cd machineB
-cp .env.example .env   # then fill in real TS_AUTHKEY, ODOO_PASSWORD, ORCHESTRATOR_API_KEY, and Machine A's Tailscale hostname for OLLAMA_BASE_URL
+cd softworker
+cp .env.example .env   # then fill in real TS_AUTHKEY, ODOO_PASSWORD, ORCHESTRATOR_API_KEY, and Hardworker's Tailscale hostname for OLLAMA_BASE_URL
 docker compose up -d
 docker compose ps
 ```
 
-Expected: all services `Up`. Verify Postgres is reachable from `odoo`/`orchestrator` but not from Machine A's Tailscale interface (it should only be on the internal Docker network, per M0's design).
+Expected: all services `Up`. Verify Postgres is reachable from `odoo`/`orchestrator` but not from Hardworker's Tailscale interface (it should only be on the internal Docker network, per M0's design).
 
 - [ ] **Step 4: Verify the real nginx gate over the real mesh**
 
-From Machine B (this is the whole point - the request must cross the actual tailnet, not `localhost`):
+From Softworker (this is the whole point - the request must cross the actual tailnet, not `localhost`):
 
 ```bash
-curl -i -H "X-Api-Key: wrong-key" https://<machine-a-tailscale-hostname>:8443/api/tags
-curl -i -H "X-Api-Key: $(grep OLLAMA_API_KEY machineA/.env | cut -d= -f2)" https://<machine-a-tailscale-hostname>:8443/api/tags
+curl -i -H "X-Api-Key: wrong-key" https://<hardworker-tailscale-hostname>:8443/api/tags
+curl -i -H "X-Api-Key: $(grep OLLAMA_API_KEY hardworker/.env | cut -d= -f2)" https://<hardworker-tailscale-hostname>:8443/api/tags
 ```
 
 Expected: `401` then `200` with the real model list - the same result Task 3 of the September plan already got against the local-dev stand-in, now confirmed against the real topology this project was always meant to run on.
 
 - [ ] **Step 5: Verify the ACL actually blocks the reverse direction**
 
-From Machine A, attempt to reach Machine B's Odoo and Postgres ports over the tailnet:
+From Hardworker, attempt to reach Softworker's Odoo and Postgres ports over the tailnet:
 
 ```bash
-curl -m 5 http://<machine-b-tailscale-hostname>:8069 ; echo "exit=$?"
+curl -m 5 http://<softworker-tailscale-hostname>:8069 ; echo "exit=$?"
 ```
 
-Expected: connection refused or timeout (not a `200`) - `tailscale-acl-example.json` restricts Machine B → Machine A:8443 only, nothing in reverse. If this succeeds, the ACL isn't actually applied to the tailnet the two machines joined - stop and fix the ACL before continuing, since an open reverse path is a real security regression, not a documentation nit.
+Expected: connection refused or timeout (not a `200`) - `tailscale-acl-example.json` restricts Softworker → Hardworker:8443 only, nothing in reverse. If this succeeds, the ACL isn't actually applied to the tailnet the two machines joined - stop and fix the ACL before continuing, since an open reverse path is a real security regression, not a documentation nit.
 
 - [ ] **Step 6: Re-run the M6 smoke test against the real mesh**
 
-Adapt `scripts/run_m6_live_smoke_test.py`'s hardcoded `localhost:8069`/`localhost:8000` to Machine B's real addresses if running this from a third machine, or run it directly on Machine B where `localhost` already resolves correctly:
+Adapt `scripts/run_m6_live_smoke_test.py`'s hardcoded `localhost:8069`/`localhost:8000` to Softworker's real addresses if running this from a third machine, or run it directly on Softworker where `localhost` already resolves correctly:
 
 ```bash
-export ODOO_PASSWORD=$(grep ODOO_PASSWORD machineB/.env | cut -d= -f2)
-export ORCHESTRATOR_API_KEY=$(grep ORCHESTRATOR_API_KEY machineB/.env | cut -d= -f2)
+export ODOO_PASSWORD=$(grep ODOO_PASSWORD softworker/.env | cut -d= -f2)
+export ORCHESTRATOR_API_KEY=$(grep ORCHESTRATOR_API_KEY softworker/.env | cut -d= -f2)
 python scripts/run_m6_live_smoke_test.py
 ```
 
@@ -864,8 +864,8 @@ Task 6's live execution surfaced a likely sign-inversion bug in `calc_engine.py`
 ### Task 8: Fix the inverted `cbam_factor_year` direction in `calculate_certificates_required`
 
 **Files:**
-- Modify: `machineB/addons/cbam/utils/calc_engine.py`
-- Modify: `machineB/tests/test_calc_engine.py`
+- Modify: `softworker/addons/cbam/utils/calc_engine.py`
+- Modify: `softworker/tests/test_calc_engine.py`
 
 **Interfaces:**
 - Consumes: nothing new.
@@ -875,7 +875,7 @@ Task 6's live execution surfaced a likely sign-inversion bug in `calc_engine.py`
 
 - [ ] **Step 1: Write the failing tests**
 
-Two of the five existing certificate tests need their inputs updated because they happen not to distinguish the two formulas (a self-symmetric 0.5, or values that only work by coincidence under the old formula) — this is expected, not scope creep, since the fix changes what "high" and "low" `cbam_factor_year` mean. Replace `machineB/tests/test_calc_engine.py`'s existing `test_certificates_benchmark_deduction_applied` and `test_certificates_never_negative_when_benchmark_deduction_exceeds_total` with these three tests (two revised, one new):
+Two of the five existing certificate tests need their inputs updated because they happen not to distinguish the two formulas (a self-symmetric 0.5, or values that only work by coincidence under the old formula) — this is expected, not scope creep, since the fix changes what "high" and "low" `cbam_factor_year` mean. Replace `softworker/tests/test_calc_engine.py`'s existing `test_certificates_benchmark_deduction_applied` and `test_certificates_never_negative_when_benchmark_deduction_exceeds_total` with these three tests (two revised, one new):
 
 ```python
 def test_certificates_benchmark_deduction_applied():
@@ -941,12 +941,12 @@ Leave every other existing test in `test_calc_engine.py` untouched — `test_cer
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `python -m pytest machineB/tests/test_calc_engine.py -v -k "benchmark_deduction_applied or exceeds_total or gentle_phase_in"`
+Run: `python -m pytest softworker/tests/test_calc_engine.py -v -k "benchmark_deduction_applied or exceeds_total or gentle_phase_in"`
 Expected: `test_certificates_benchmark_deduction_applied` FAILS (currently returns 130.0's old-formula counterpart, not the new expected value — check the actual failure output rather than assuming which direction), `test_certificates_never_negative_when_benchmark_deduction_exceeds_total` FAILS (`cbam_factor_year=0.0` under the CURRENT buggy formula produces a deduction of 0, so `result` would be `50.0` not `0.0`), `test_certificates_low_year_factor_means_gentle_phase_in_burden` FAILS (currently the early-transition value would be HIGHER than the full-phase-out value, backwards from the assertion).
 
 - [ ] **Step 3: Fix the formula**
 
-In `machineB/addons/cbam/utils/calc_engine.py`, replace:
+In `softworker/addons/cbam/utils/calc_engine.py`, replace:
 
 ```python
     N = [SEE_total - (benchmark * CBAMFactor_year * Q)]
@@ -987,16 +987,16 @@ with:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `python -m pytest machineB/tests/test_calc_engine.py -v`
+Run: `python -m pytest softworker/tests/test_calc_engine.py -v`
 Expected: all pass (15 tests - 2 revised, 1 new, net +1 from the file's prior count, matching the plan's earlier work in this branch).
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, +1 from the branch's running total (127 -> 128), no other existing test's expected value changed. If any other test unexpectedly breaks, that test was relying on the buggy formula's behavior somewhere it shouldn't have - investigate before proceeding, don't paper over it.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add machineB/addons/cbam/utils/calc_engine.py machineB/tests/test_calc_engine.py
+git add softworker/addons/cbam/utils/calc_engine.py softworker/tests/test_calc_engine.py
 git commit -m "$(cat <<'EOF'
 Fix inverted cbam_factor_year direction in certificate calculation
 
@@ -1022,7 +1022,7 @@ The 5 country/route combinations currently in `EMISSION_FACTOR_SEEDS` (steel BF-
 
 - [ ] **Step 1: Find real, populated combinations**
 
-Using `WebFetch`/`WebSearch` (same tools, same standard as Task 6: only a number seen in clean, directly-quotable primary text counts), find country/route combinations for steel (routes: `BF-BOF`, `EAF_scrap`, `EAF_DRI` — see `machineB/addons/cbam/models/cbam_production_route.py` for the exact allowed route codes) and aluminium (`primary_electrolysis`, `secondary_recycled`) that JRC134682 and/or Reg. (EU) 2025/2621 actually publish default emission-factor data for, among CBAM's real import-origin countries (non-EU, non-EEA). Prioritize keeping at least one steel and one aluminium combination that plausibly matches `projecthandoff.md` section 3's stated regional relevance (Tunisia exports steel/aluminium/phosphate to the EU) if the primary sources support it for ANY steel or aluminium route Tunisia is actually listed under — check this specifically before concluding Tunisia has to be dropped entirely; if the sources only support Tunisia for a different route or sector than currently assumed, use that route instead of substituting a different country.
+Using `WebFetch`/`WebSearch` (same tools, same standard as Task 6: only a number seen in clean, directly-quotable primary text counts), find country/route combinations for steel (routes: `BF-BOF`, `EAF_scrap`, `EAF_DRI` — see `softworker/addons/cbam/models/cbam_production_route.py` for the exact allowed route codes) and aluminium (`primary_electrolysis`, `secondary_recycled`) that JRC134682 and/or Reg. (EU) 2025/2621 actually publish default emission-factor data for, among CBAM's real import-origin countries (non-EU, non-EEA). Prioritize keeping at least one steel and one aluminium combination that plausibly matches `projecthandoff.md` section 3's stated regional relevance (Tunisia exports steel/aluminium/phosphate to the EU) if the primary sources support it for ANY steel or aluminium route Tunisia is actually listed under — check this specifically before concluding Tunisia has to be dropped entirely; if the sources only support Tunisia for a different route or sector than currently assumed, use that route instead of substituting a different country.
 
 - [ ] **Step 2: Escalate on partial failure, same as Task 6**
 
@@ -1045,7 +1045,7 @@ For `YEAR_PARAMETER_SEEDS`'s `reference_certificate_price`, use the average of t
 Run: `python -m pytest shared/data/test_seed_emission_factors.py -v`
 Expected: PASS with the updated assertions.
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, same count as after Task 8 (this task changes data and one test's expected list, not test count).
 
 - [ ] **Step 7: Commit**
@@ -1155,7 +1155,7 @@ Also update `test_find_incomplete_seeds_flags_exactly_the_still_blocked_fields` 
 
 - [ ] **Step 6: Run the full suite**
 
-Run: `python -m pytest machineB/tests/ shared/ -q`
+Run: `python -m pytest softworker/tests/ shared/ -q`
 Expected: PASS, +1 from the branch's running total, no other existing test's expected value changed.
 
 - [ ] **Step 7: Commit**

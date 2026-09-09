@@ -12,9 +12,9 @@ boundaries; nothing has run against real infra yet.
 
 The current machine is different from that sandbox: it has Docker Desktop
 (daemon not yet started), the `ollama` CLI installed natively, and an NVIDIA
-RTX 5070 (12GB VRAM). This machine will act as **Machine A** (GPU / LLM
+RTX 5070 (12GB VRAM). This machine will act as **Hardworker** (GPU / LLM
 host), matching the GPU placement. A second Windows machine exists as the
-intended **Machine B** (Odoo host) but is not reachable this session.
+intended **Softworker** (Odoo host) but is not reachable this session.
 
 M7 (pinning down real JRC134682 / EUR-Lex emission-factor and benchmark
 numbers) is explicitly **out of scope** for this pass — it's a primary-source
@@ -24,7 +24,7 @@ the project's own "never invent a number" rule.
 ## Goal
 
 Get real, non-mocked evidence for:
-- **M4** — a real Ollama container running on Machine A, a tool-calling model
+- **M4** — a real Ollama container running on Hardworker, a tool-calling model
   chosen by actual benchmarking (not the model card), nginx API-key gate
   verified for real.
 - **M3 (live half)** — the `cbam` Odoo module actually installs and loads in
@@ -40,15 +40,15 @@ Get real, non-mocked evidence for:
 ## Non-goals
 
 - M7's real emission-factor/benchmark numbers — separate session.
-- Standing up the real cross-machine Tailscale mesh against Machine B — not
-  reachable. The real `machineA/docker-compose.yml` / `machineB/docker-compose.yml`
-  Tailscale topology stays as-is, unmodified, for when Machine B is available.
+- Standing up the real cross-machine Tailscale mesh against Softworker — not
+  reachable. The real `hardworker/docker-compose.yml` / `softworker/docker-compose.yml`
+  Tailscale topology stays as-is, unmodified, for when Softworker is available.
 - Any change to the decided architecture (no LangChain, zero orchestrator
   business logic, deterministic calc engine, etc.) — those constraints hold.
 
 ## Approach
 
-### 1. Machine A bring-up (M4)
+### 1. Hardworker bring-up (M4)
 
 Benchmark candidates natively via the already-installed `ollama` CLI
 (`ollama serve`), not by pulling every candidate into a Docker volume too —
@@ -66,7 +66,7 @@ For each: run 10 tool-calling attempts against the real
 latency. Write the winner + methodology to `docs/model-benchmark.md`.
 
 Once a winner is picked: bring up the **actual**
-`machineA/docker-compose.yml` (Ollama + nginx sidecar) unmodified, pull only
+`hardworker/docker-compose.yml` (Ollama + nginx sidecar) unmodified, pull only
 the winning model into it, and verify the nginx API-key gate for real:
 `curl` with a bad `X-Api-Key` → 401, correct key → reaches Ollama. This
 satisfies M4 step 5 without re-benchmarking inside Docker.
@@ -75,11 +75,11 @@ satisfies M4 step 5 without re-benchmarking inside Docker.
 
 New file: `docker-compose.local-dev.yml` at repo root — a **committed**,
 clearly-labeled dev-only stack combining Odoo 17 + Postgres 16 + the
-orchestrator, wired to reach the Machine A Ollama/nginx container over
+orchestrator, wired to reach the Hardworker Ollama/nginx container over
 `localhost`, with no Tailscale sidecar (plain Docker bridge network,
 ports exposed on localhost only). Header comment makes explicit this is
-**not** the deployment topology — see `machineA/docker-compose.yml` /
-`machineB/docker-compose.yml` for the real two-machine setup.
+**not** the deployment topology — see `hardworker/docker-compose.yml` /
+`softworker/docker-compose.yml` for the real two-machine setup.
 
 Bring it up, install the `cbam` module, and fix whatever the ORM registry
 actually complains about (per M3's own caveat that this was never done).
@@ -116,7 +116,7 @@ M9 → real numbers recorded. M7 stays open. Commit.
 
 ## Testing / verification plan
 
-- Existing 108 tests must still pass unchanged (`pytest machineB/tests/ shared/ -q`).
+- Existing 108 tests must still pass unchanged (`pytest softworker/tests/ shared/ -q`).
 - Model benchmark: raw pass/fail counts per candidate recorded in
   `docs/model-benchmark.md`, not just a verdict.
 - nginx gate: actual `curl` output (401 / 200) pasted as evidence, not

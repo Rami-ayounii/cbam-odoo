@@ -10,11 +10,11 @@ WORKDIR /app
 # models -> `import odoo`, which isn't installed in this image on purpose -
 # the orchestrator is not an Odoo process, it talks to Odoo over RPC (see
 # odoo_client.py).
-COPY machineB/orchestrator/requirements.txt .
+COPY softworker/orchestrator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY machineB/orchestrator/*.py ./
-COPY machineB/addons/cbam/utils/calc_engine.py ./calc_engine.py
+COPY softworker/orchestrator/*.py ./
+COPY softworker/addons/cbam/utils/calc_engine.py ./calc_engine.py
 COPY shared/tool_schemas/ ./shared/tool_schemas/
 
 # Run as a non-root user. Nothing here needs root: pip installed system-wide

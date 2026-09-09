@@ -7,7 +7,7 @@ workflow: it does not decide which tool runs next or care what ran before
 it. That decision is made entirely by the LLM inside agent_loop.py.
 
 Imports calc_engine as a bare module (not `cbam.utils.calc_engine`) because
-this process has no Odoo installed - see machineB/tests/conftest.py for why.
+this process has no Odoo installed - see softworker/tests/conftest.py for why.
 """
 
 from pydantic import ValidationError

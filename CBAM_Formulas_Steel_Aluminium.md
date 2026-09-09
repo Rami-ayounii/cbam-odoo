@@ -253,7 +253,7 @@ N_final = N × (1 − Carbon Price Adjustment)
 *This section is included for context only — the core request was the emissions/footprint formulas in sections 1–3, which feed directly into this certificate calculation.*
 
 **Correction (added post-implementation, do not "fix" `calc_engine.py` to match the formula above):**
-`machineB/addons/cbam/utils/calc_engine.py`'s actual implementation deducts
+`softworker/addons/cbam/utils/calc_engine.py`'s actual implementation deducts
 `benchmark × (1 - CBAMFactor_year)`, not `benchmark × CBAMFactor_year` as
 written above. The benchmark deduction represents the free allocation an
 installation still *retains* for the year — the complement of the phase-out

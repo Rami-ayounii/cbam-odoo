@@ -18,14 +18,14 @@ from typing import List, Optional
 
 from pydantic import ValidationError
 
-# Standalone-runnable bootstrap: machineB/orchestrator only lands on
+# Standalone-runnable bootstrap: softworker/orchestrator only lands on
 # sys.path automatically when pytest loads shared/evaluation/conftest.py.
 # The brief's own Step 6 runs this file directly with plain `python
 # benchmark_models.py ...` (no pytest involved), so the same path needs to
 # be inserted here too - mirroring conftest.py's REPO_ROOT computation -
 # or `from tool_args import ...` below fails with ModuleNotFoundError.
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
+_ORCHESTRATOR_DIR = _REPO_ROOT / "softworker" / "orchestrator"
 if str(_ORCHESTRATOR_DIR) not in sys.path:
     sys.path.insert(0, str(_ORCHESTRATOR_DIR))
 
@@ -112,7 +112,7 @@ def build_report_markdown(results: List[BenchmarkResult]) -> str:
         "document (shared/synthetic_data/output/) and asked to make progress "
         "on processing it. A tool call is 'valid' only if it names a real "
         "tool and its arguments pass that tool's exact production Pydantic "
-        "validation (machineB/orchestrator/tool_args.py).",
+        "validation (softworker/orchestrator/tool_args.py).",
         "",
     ]
     # Same ordering key as the winner selection below (valid_rate desc,

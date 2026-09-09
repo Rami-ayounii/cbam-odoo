@@ -1,16 +1,16 @@
 # LOCAL-DEV / SINGLE-MACHINE STACK - NOT THE REAL DEPLOYMENT TOPOLOGY.
 #
 # The real architecture is two machines joined over Tailscale - see
-# machineA/docker-compose.yml and machineB/docker-compose.yml. This file
+# hardworker/docker-compose.yml and softworker/docker-compose.yml. This file
 # exists purely so M3 (Odoo module install)/M6 (agent loop)/M9 (evaluation)
 # can be exercised against real Odoo + real Ollama on a single host, when a
 # second machine isn't reachable. No Tailscale anywhere here: every service
 # talks to every other one directly by Docker Compose service name on one
 # bridge network. nginx.conf.template is reused byte-for-byte from
-# machineA/ so the real API-key gate logic is still genuinely verified, even
+# hardworker/ so the real API-key gate logic is still genuinely verified, even
 # though it isn't running behind the real Tailscale sidecar here.
 #
-# nginx/ollama networking note: machineA/nginx.conf.template hardcodes
+# nginx/ollama networking note: hardworker/nginx.conf.template hardcodes
 # `proxy_pass http://127.0.0.1:11434` because in the real topology nginx and
 # ollama both join `network_mode: service:tailscale` and therefore share one
 # network namespace/loopback. Since this file is required to reuse that
@@ -53,11 +53,11 @@ services:
     environment:
       - OLLAMA_API_KEY=${OLLAMA_API_KEY}
     volumes:
-      - ./machineA/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./hardworker/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on: [ollama]
     # Shares ollama's network namespace so nginx.conf.template's
     # `proxy_pass http://127.0.0.1:11434` (unmodified, byte-for-byte from
-    # machineA/) actually reaches ollama's listener - see header comment.
+    # hardworker/) actually reaches ollama's listener - see header comment.
     # network_mode is mutually exclusive with `networks:`/`ports:`, so
     # neither is set here.
     network_mode: "service:ollama"
@@ -81,7 +81,7 @@ services:
       - PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - odoo-data-local-dev:/var/lib/odoo
-      - ./machineB/addons:/mnt/extra-addons:ro
+      - ./softworker/addons:/mnt/extra-addons:ro
     ports:
       - "8069:8069"
     networks: [local-dev]
@@ -89,7 +89,7 @@ services:
   orchestrator:
     build:
       context: .
-      dockerfile: machineB/orchestrator/Dockerfile
+      dockerfile: softworker/orchestrator/Dockerfile
     depends_on: [odoo, nginx]
     environment:
       # Address the gate as `ollama:8443`, not `nginx:8443` - see header

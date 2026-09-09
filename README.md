@@ -14,8 +14,8 @@ by milestone: [`docs/PROGRESS.md`](docs/PROGRESS.md).
 ## Layout
 
 ```
-machineA/       LLM host: Ollama + nginx API-key gate, Tailscale sidecar
-machineB/       Odoo host: Odoo 17 + Postgres + orchestrator (agent loop)
+hardworker/       LLM host: Ollama + nginx API-key gate, Tailscale sidecar
+softworker/       Odoo host: Odoo 17 + Postgres + orchestrator (agent loop)
   addons/cbam/  the Odoo module — models, views, security, calc engine
   orchestrator/ FastAPI agent-loop service (tool dispatch, LLM client)
   tests/        pytest suite for the calc engine and orchestrator
@@ -26,8 +26,8 @@ docs/           milestone progress, evaluation runs, source verification
 ## Running the tests
 
 ```
-pip install -r machineB/orchestrator/requirements.txt -r machineB/requirements-dev.txt -r shared/synthetic_data/requirements.txt
-python -m pytest machineB/tests/ shared/ -q
+pip install -r softworker/orchestrator/requirements.txt -r softworker/requirements-dev.txt -r shared/synthetic_data/requirements.txt
+python -m pytest softworker/tests/ shared/ -q
 ```
 
 ## Running the stack locally (single machine, no Tailscale)
@@ -38,7 +38,7 @@ docker compose -f docker-compose.local-dev.yml --env-file .env.local-dev up -d
 
 See [`docker-compose.local-dev.yml`](docker-compose.local-dev.yml)'s header
 comment for how this differs from the real two-machine topology
-(`machineA/docker-compose.yml` + `machineB/docker-compose.yml`), which is
+(`hardworker/docker-compose.yml` + `softworker/docker-compose.yml`), which is
 the target deployment shape but has not yet been verified over a live
 Tailscale mesh.
 

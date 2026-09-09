@@ -50,7 +50,7 @@ should showcase both, not just "connect an LLM to Odoo."
 ## 4. Architecture — two machines, Docker, Tailscale
 
 ```
-Machine A (LLM host, has/may have GPU)          Machine B (Odoo host)
+Hardworker (LLM host, has/may have GPU)          Softworker (Odoo host)
 ┌─────────────────────────────┐   Tailscale    ┌──────────────────────────────┐
 │ tailscale sidecar container │◄──── VPN ─────►│ tailscale sidecar container  │
 │  ├─ ollama (LLM inference)  │  (encrypted,   │  ├─ postgres                 │
@@ -61,25 +61,25 @@ Machine A (LLM host, has/may have GPU)          Machine B (Odoo host)
 
 - Networking: Tailscale (mesh VPN, WireGuard-based), sidecar pattern —
   app containers use `network_mode: service:tailscale` to share the tunnel
-  without public exposure. ACLs restrict Machine B → Machine A:8443 only,
+  without public exposure. ACLs restrict Softworker → Hardworker:8443 only,
   nothing else, nothing in reverse.
 - Plan B if Tailscale is unavailable (blocked network, no third-party
   dependency wanted): self-hosted WireGuard, static tunnel IPs, manual
   keypair exchange. Fallback if same LAN: static IPs + firewall rule, no VPN.
 - Auth: nginx in front of Ollama checks an `X-Api-Key` header. Never expose
   the raw Ollama API on the tailnet without this.
-- Config files already produced: `docker-compose.machineA.yml`,
-  `docker-compose.machineB.yml`, `nginx.conf`, `tailscale-acl-example.json`
-  (attach these to the repo under `machineA/` and `machineB/` respectively).
+- Config files already produced: `docker-compose.hardworker.yml`,
+  `docker-compose.softworker.yml`, `nginx.conf`, `tailscale-acl-example.json`
+  (attach these to the repo under `hardworker/` and `softworker/` respectively).
 
 ## 5. Repo structure (monorepo, decided)
 
 ```
-/machineA/
+/hardworker/
     docker-compose.yml         (LLM + nginx gate)
     nginx.conf
     llm/                       (any custom Modelfile / prompts for the model)
-/machineB/
+/softworker/
     docker-compose.yml         (odoo + postgres + orchestrator)
     addons/cbam/               (the Odoo module itself)
     orchestrator/               (FastAPI agent-loop service, Dockerfile)
@@ -196,7 +196,7 @@ Design constraints (non-negotiable, decided already):
 3. Calc engine — build and unit-test standalone against synthetic data,
    **zero LLM involvement**, verify against a hand-calculated example first
 4. Odoo module (models, views, report template) wired to the calc engine
-5. LLM inference container (Machine A) — get it running and reachable
+5. LLM inference container (Hardworker) — get it running and reachable
 6. Orchestrator agent loop — only once steps 3 and 5 both work independently
 7. Versioned emission factor data load (real JRC/implementing act values)
 8. Security hardening (ACLs, API keys, Odoo record rules)
@@ -211,9 +211,9 @@ Design constraints (non-negotiable, decided already):
 - Tailscale client (`curl -fsSL https://tailscale.com/install.sh | sh`), or
   WireGuard tools if using Plan B
 
-**Machine A (LLM host)**
+**Hardworker (LLM host)**
 - Ollama — run as the `ollama/ollama` Docker image already in
-  `docker-compose.machineA.yml`, no separate native install needed
+  `docker-compose.hardworker.yml`, no separate native install needed
 - If an NVIDIA GPU is present: NVIDIA drivers + `nvidia-container-toolkit`
   on the host, and uncomment the GPU block in the compose file. If no GPU,
   leave commented, expect CPU inference to be slow (unmeasured estimate:
@@ -225,9 +225,9 @@ Design constraints (non-negotiable, decided already):
   - `ollama pull llama3.1:8b-instruct`
 - nginx — already the `nginx:latest` image in the compose file, no separate install
 
-**Machine B (Odoo host)**
+**Softworker (Odoo host)**
 - Odoo 17 Community — `odoo:17` Docker image, already in
-  `docker-compose.machineB.yml`
+  `docker-compose.softworker.yml`
 - PostgreSQL 16 — `postgres:16` Docker image, already in the compose file
 - Orchestrator service — Python 3.11+, install via its own
   `requirements.txt`:
@@ -264,7 +264,7 @@ executor.
 
 ## 11. Open items — not yet decided, answer these before/while coding
 
-- Exact hardware on Machine A (GPU or not, VRAM) — determines model choice
+- Exact hardware on Hardworker (GPU or not, VRAM) — determines model choice
 - Odoo version confirmed as 17? (assumed above, verify)
 - Whether any real (anonymized) supplier documents will be used for testing,
   or synthetic data only throughout

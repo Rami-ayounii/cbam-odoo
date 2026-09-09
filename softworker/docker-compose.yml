@@ -1,0 +1,83 @@
+services:
+
+  # No tailscale sidecar container here. This host already runs its own
+  # Tailscale client natively (already on the tailnet as node "rami" /
+  # 100.107.246.65 - see `tailscale status`), so odoo/orchestrator publish
+  # their ports to the host instead of joining a dedicated sidecar's network
+  # namespace. Trade-off vs. the documented two-node design (see
+  # projecthandoff.md / README.md): no per-role Tailscale identity
+  # (cbam-softworker) or tag-scoped ACLs - reachability depends on whatever
+  # ACLs apply to this host's own node. Switched to this after the Tailscale
+  # admin console's key-generation page started producing corrupted auth
+  # keys (rejected by the real control server); revisit if that's resolved.
+
+  db:
+    image: postgres:16.15
+    container_name: softworker-postgres
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-odoo}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    # Postgres listens only on the internal Docker bridge — not exposed on tailnet
+    networks:
+      - internal
+
+  odoo:
+    image: odoo:17.0-20260817
+    container_name: softworker-odoo
+    depends_on:
+      - db
+    environment:
+      - HOST=db
+      - USER=${POSTGRES_USER:-odoo}
+      - PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - ./addons:/mnt/extra-addons:ro
+    # Odoo listens on port 8069; published to the host so it is reachable on
+    # the tailnet at this host's own MagicDNS name/IP (see note above), plus
+    # loopback for local testing.
+    ports:
+      - "8069:8069"
+    networks:
+      - internal
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: softworker/orchestrator/Dockerfile
+    container_name: softworker-orchestrator
+    depends_on:
+      - odoo
+    environment:
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL}       # e.g. http://<hardworker-tailscale-ip>:8443
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
+      - ODOO_URL=http://odoo:8069
+      - ODOO_DB=${ODOO_DB:-cbam}
+      - ODOO_USER=${ODOO_USER:-admin}
+      - ODOO_PASSWORD=${ODOO_PASSWORD}
+      - LLM_MODEL=${LLM_MODEL:-llama3.1:8b}
+      - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-9}
+      - TOOL_SCHEMA_DIR=/app/shared/tool_schemas
+      - ORCHESTRATOR_API_KEY=${ORCHESTRATOR_API_KEY}
+    ports:
+      - "8000:8000"
+    networks:
+      - internal
+    restart: unless-stopped
+    # M6: agent loop built in softworker/orchestrator/. Build context is the
+    # repo root (not softworker/) so the Dockerfile can also COPY
+    # shared/tool_schemas/ - those schemas live outside softworker/ and would
+    # be unreachable by a softworker/-scoped build context.
+
+volumes:
+  postgres-data:
+  odoo-data:
+
+networks:
+  internal:
+    driver: bridge

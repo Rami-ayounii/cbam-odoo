@@ -155,7 +155,7 @@ production route it comes from.
 BF-BOF/FR, steel EAF_scrap/FR, steel EAF_DRI/TR, aluminium
 primary_electrolysis/NO, aluminium secondary_recycled/TN), matching the
 codebase's existing fraction convention (`0.10` = 10%, confirmed against
-`machineB/tests/test_calc_engine.py` and `test_tools.py` usage).
+`softworker/tests/test_calc_engine.py` and `test_tools.py` usage).
 
 ---
 
@@ -374,7 +374,7 @@ name is the opposite number and the opposite direction:
 `docs/PROGRESS.md`'s M2 section documents it as `"phase-out factor (2.5%
 2026 -> 100% 2034)"`; the M4 live-infra plan does the same. Tracing this
 through the actual formula in
-`machineB/addons/cbam/utils/calc_engine.py`:
+`softworker/addons/cbam/utils/calc_engine.py`:
 
 ```python
 benchmark_deduction = benchmark * cbam_factor_year * quantity_tonnes

@@ -1,7 +1,7 @@
 """Odoo-ORM adapters for calc_engine.
 
 Kept separate from calc_engine.py so the calc engine itself stays a plain,
-Odoo-free Python module that machineB/tests/test_calc_engine.py can import
+Odoo-free Python module that softworker/tests/test_calc_engine.py can import
 and unit-test without a running Odoo instance.
 """
 

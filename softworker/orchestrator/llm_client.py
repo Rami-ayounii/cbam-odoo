@@ -69,7 +69,7 @@ class LLMClient:
         #
         # default_headers sets X-Api-Key explicitly: the openai SDK's own
         # `api_key` param only ever produces an `Authorization: Bearer`
-        # header, but the nginx gate in front of Ollama (machineA/
+        # header, but the nginx gate in front of Ollama (hardworker/
         # nginx.conf.template, reused byte-for-byte - see
         # docker-compose.local-dev.yml's nginx service comment) checks
         # $http_x_api_key, not Authorization. Without this, every real

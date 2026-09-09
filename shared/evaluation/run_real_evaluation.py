@@ -11,7 +11,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-# Standalone-runnable bootstrap: machineB/orchestrator, machineB/addons/cbam/
+# Standalone-runnable bootstrap: softworker/orchestrator, softworker/addons/cbam/
 # utils, and shared/data only land on sys.path automatically when pytest
 # loads shared/evaluation/conftest.py. Task 7's Step 5 runs this file
 # directly with plain `python run_real_evaluation.py ...` (no pytest
@@ -20,8 +20,8 @@ from pathlib import Path
 # standalone bootstrap - or the imports below fail with
 # ModuleNotFoundError (dev_fixtures, and transitively calc_engine).
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_UTILS_DIR = _REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"
-_ORCHESTRATOR_DIR = _REPO_ROOT / "machineB" / "orchestrator"
+_UTILS_DIR = _REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"
+_ORCHESTRATOR_DIR = _REPO_ROOT / "softworker" / "orchestrator"
 _SHARED_DATA_DIR = _REPO_ROOT / "shared" / "data"
 for _path in (_UTILS_DIR, _ORCHESTRATOR_DIR, _SHARED_DATA_DIR):
     if str(_path) not in sys.path:

@@ -71,7 +71,7 @@ only after opening the actual source document it cites - never from memory
 or a secondary-source guess.
 
 Intended to run standalone against a real Odoo instance over odoorpc (the
-same access pattern machineB/orchestrator uses), not from inside Odoo's own
+same access pattern softworker/orchestrator uses), not from inside Odoo's own
 process - see main() below.
 """
 

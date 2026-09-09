@@ -14,7 +14,7 @@ from pathlib import Path
 import requests
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "machineB" / "addons" / "cbam" / "utils"))
+sys.path.insert(0, str(REPO_ROOT / "softworker" / "addons" / "cbam" / "utils"))
 sys.path.insert(0, str(REPO_ROOT / "shared" / "data"))
 
 import odoorpc  # noqa: E402

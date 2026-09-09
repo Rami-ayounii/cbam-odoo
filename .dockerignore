@@ -1,5 +1,5 @@
 # Applies to the orchestrator image build, whose context is the repo root
-# (see machineB/docker-compose.yml: build.context: ..). The Dockerfile only
+# (see softworker/docker-compose.yml: build.context: ..). The Dockerfile only
 # COPYs specific files/globs (never "COPY . ."), so nothing here can leak
 # into the image by accident either way — this file exists to keep the
 # build context small and fast, and as defense-in-depth in case the

@@ -2,8 +2,8 @@ services:
 
   tailscale:
     image: tailscale/tailscale:v1.102.3
-    container_name: machineA-tailscale
-    hostname: cbam-machineA
+    container_name: hardworker-tailscale
+    hostname: cbam-hardworker
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
@@ -18,7 +18,7 @@ services:
 
   ollama:
     image: ollama/ollama:0.33.3
-    container_name: machineA-ollama
+    container_name: hardworker-ollama
     network_mode: service:tailscale
     volumes:
       - ollama-models:/root/.ollama
@@ -36,7 +36,7 @@ services:
 
   nginx:
     image: nginx:1.30.4
-    container_name: machineA-nginx
+    container_name: hardworker-nginx
     network_mode: service:tailscale
     environment:
       # Required so the image's built-in envsubst-on-templates entrypoint

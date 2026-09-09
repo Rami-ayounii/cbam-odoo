@@ -1,6 +1,6 @@
 # M4 Model Tool-Calling Benchmark
 
-Method: N attempts per model, each given one real synthetic CBAM document (shared/synthetic_data/output/) and asked to make progress on processing it. A tool call is 'valid' only if it names a real tool and its arguments pass that tool's exact production Pydantic validation (machineB/orchestrator/tool_args.py).
+Method: N attempts per model, each given one real synthetic CBAM document (shared/synthetic_data/output/) and asked to make progress on processing it. A tool call is 'valid' only if it names a real tool and its arguments pass that tool's exact production Pydantic validation (softworker/orchestrator/tool_args.py).
 
 Notes:
 - `llama3.1:8b-instruct` (named in projecthandoff.md section 10) is not a
@@ -21,7 +21,7 @@ Notes:
   benchmark bug.
 - Methodology note, corrected: this benchmark scores a tool call valid only
   when the model emits exactly one well-formed call per turn. The real
-  orchestrator (`machineB/orchestrator/agent_loop.py`) actually executes
+  orchestrator (`softworker/orchestrator/agent_loop.py`) actually executes
   every tool call a model emits in a turn (`for call in
   response.tool_calls: ...`) with no single-call restriction - it is more
   permissive than this benchmark on that specific point, not equivalent to

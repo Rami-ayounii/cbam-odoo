@@ -13,7 +13,7 @@
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
 | M2 — Calculation engine | **Done** (certificate formula corrected later, see commit `db50c1f`) | `2d89d37` |
 | M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
-| M4 — LLM inference container (Machine A) | **Done** — original raw benchmark winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real. Re-tested on the real fixed harness (2026-09-09): `qwen2.5:7b-instruct` (the 40% runner-up) scored worse (10/10 exhausted, 0% accuracy) — "Model comparison" section — but `qwen3:8b` (originally 0% valid-rate, dismissed) essentially **tied** `llama3.1:8b` on field accuracy while completing twice as often with zero escalations — the original 0% ranking was a benchmark-methodology artifact, not a real capability gap; see "qwen3:8b re-test" section. Model choice is now genuinely open between llama3.1:8b and qwen3:8b, not settled | `9d4851a` |
+| M4 — LLM inference container (Hardworker) | **Done** — original raw benchmark winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real. Re-tested on the real fixed harness (2026-09-09): `qwen2.5:7b-instruct` (the 40% runner-up) scored worse (10/10 exhausted, 0% accuracy) — "Model comparison" section — but `qwen3:8b` (originally 0% valid-rate, dismissed) essentially **tied** `llama3.1:8b` on field accuracy while completing twice as often with zero escalations — the original 0% ranking was a benchmark-methodology artifact, not a real capability gap; see "qwen3:8b re-test" section. Model choice is now genuinely open between llama3.1:8b and qwen3:8b, not settled | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); `cbam.good.benchmark` gained a real route dimension ("Independent audit + follow-up fixes" section) and its steel EAF_scrap benchmark is now resolved too (0.142, a real "EAF carbon steel" row — see "M7 benchmark research" section); aluminium secondary_recycled's benchmark is re-confirmed genuinely absent from the source, not unchecked — `find_incomplete_seeds()` now returns 2 items | `2a4deec`, `c35dbbe`, `4923a9e` |
@@ -27,11 +27,11 @@
 ### M0 — Repo scaffold & networking (commit `16ec5ec`)
 
 **Files created:**
-- `machineA/docker-compose.yml` — Ollama + nginx sidecar on Tailscale network
-- `machineA/nginx.conf.template` — API-key gate (`X-Api-Key` header), rate limiting (10 r/s), streaming proxy (no buffering)
-- `machineB/docker-compose.yml` — Odoo 17 + PostgreSQL 16 + orchestrator placeholder on Tailscale network
-- `machineA/.env.example` / `machineB/.env.example` — document all required secrets
-- `tailscale-acl-example.json` — ACL restricting Machine B → Machine A:8443 TCP only (blocks reverse)
+- `hardworker/docker-compose.yml` — Ollama + nginx sidecar on Tailscale network
+- `hardworker/nginx.conf.template` — API-key gate (`X-Api-Key` header), rate limiting (10 r/s), streaming proxy (no buffering)
+- `softworker/docker-compose.yml` — Odoo 17 + PostgreSQL 16 + orchestrator placeholder on Tailscale network
+- `hardworker/.env.example` / `softworker/.env.example` — document all required secrets
+- `tailscale-acl-example.json` — ACL restricting Softworker → Hardworker:8443 TCP only (blocks reverse)
 - `.gitignore` / `.gitattributes` — excludes secrets and data volumes; normalises line endings to LF
 
 **Key decisions locked in:**
@@ -82,11 +82,11 @@ Comprehensive reference sheet compiled July 2026 covering:
 ### M2 — Calculation engine (built 2026-07-30, commit `2d89d37`)
 
 **Files created:**
-- `machineB/addons/cbam/utils/calc_engine.py` — the four functions below, plus `EmissionFactor` dataclass
-- `machineB/tests/test_calc_engine.py` — 15 tests, all passing
-- `machineB/tests/conftest.py` — adds `machineB/addons` to `sys.path` so tests import `cbam.utils.calc_engine` without the Odoo module needing a manifest yet
-- `machineB/addons/cbam/__init__.py`, `machineB/addons/cbam/utils/__init__.py` — package markers (M3 will add `__manifest__.py` alongside)
-- `machineB/requirements-dev.txt` — `pytest>=8.0.0`
+- `softworker/addons/cbam/utils/calc_engine.py` — the four functions below, plus `EmissionFactor` dataclass
+- `softworker/tests/test_calc_engine.py` — 15 tests, all passing
+- `softworker/tests/conftest.py` — adds `softworker/addons` to `sys.path` so tests import `cbam.utils.calc_engine` without the Odoo module needing a manifest yet
+- `softworker/addons/cbam/__init__.py`, `softworker/addons/cbam/utils/__init__.py` — package markers (M3 will add `__manifest__.py` alongside)
+- `softworker/requirements-dev.txt` — `pytest>=8.0.0`
 
 **Functions implemented:**
 
@@ -132,7 +132,7 @@ those only get baked into real records in M7):
 - Versioned lookup: two non-overlapping date ranges (picks correct record either side of the
   transition date), no match raises `ValueError`, overlapping records raise `ValueError`
 
-**Done:** `pytest machineB/tests/test_calc_engine.py -v` → 20 passed (15 built test-first here, RED
+**Done:** `pytest softworker/tests/test_calc_engine.py -v` → 20 passed (15 built test-first here, RED
 confirmed via `ModuleNotFoundError` before `calc_engine.py` existed, then GREEN; 5 more added later by
 Task 8 alongside the sign-inversion fix above).
 
@@ -148,17 +148,17 @@ schedule, and the published reference certificate price) — deferred to M7 alon
 is available in this dev environment, so this module has only been checked
 statically (`py_compile` on every `.py` file, `xml.dom.minidom` parse on
 every view/report XML — both clean). It has **not** been loaded into a real
-Odoo 17 instance. First thing to do once Machine B is up: `docker compose up`
+Odoo 17 instance. First thing to do once Softworker is up: `docker compose up`
 and install the module, then fix whatever the ORM registry actually
 complains about.
 
 **Files created:**
-- `machineB/addons/cbam/__manifest__.py` — depends on `base`, `mail`; no external Python packages
-- `machineB/addons/cbam/models/` — `cbam_production_route.py`, `cbam_installation.py`, `cbam_good.py`, `cbam_emission_factor.py` (versioned, with an `@api.constrains` overlap guard), `cbam_year_parameter.py` (**new, not in the original data model**), `cbam_declaration.py`, `cbam_declaration_line.py`, `cbam_source_document.py`
-- `machineB/addons/cbam/utils/odoo_adapters.py` — `OdooEmissionFactorSession`, the ORM-backed adapter `lookup_emission_factor()` needs; kept out of `calc_engine.py` so the calc engine stays Odoo-free and standalone-testable
-- `machineB/addons/cbam/security/ir.model.access.csv` — base user (mostly read + line-level write) vs. `base.group_system` (full CRUD) for all 7 models
-- `machineB/addons/cbam/views/` — `cbam_declaration_views.xml` (form embeds an editable line list with a "Lookup Default EF" button), `cbam_declaration_line_views.xml`, `cbam_source_document_views.xml`, `cbam_menus.xml` (root menu + a Configuration submenu for the 5 reference-data models, using Odoo's auto-generated views — needed so the Many2one fields have something to select, wasn't explicitly asked for but the module is unusable without it)
-- `machineB/addons/cbam/reports/cbam_declaration_report.xml` — basic QWeb PDF summary (declarant, year, status, totals, one row per line)
+- `softworker/addons/cbam/__manifest__.py` — depends on `base`, `mail`; no external Python packages
+- `softworker/addons/cbam/models/` — `cbam_production_route.py`, `cbam_installation.py`, `cbam_good.py`, `cbam_emission_factor.py` (versioned, with an `@api.constrains` overlap guard), `cbam_year_parameter.py` (**new, not in the original data model**), `cbam_declaration.py`, `cbam_declaration_line.py`, `cbam_source_document.py`
+- `softworker/addons/cbam/utils/odoo_adapters.py` — `OdooEmissionFactorSession`, the ORM-backed adapter `lookup_emission_factor()` needs; kept out of `calc_engine.py` so the calc engine stays Odoo-free and standalone-testable
+- `softworker/addons/cbam/security/ir.model.access.csv` — base user (mostly read + line-level write) vs. `base.group_system` (full CRUD) for all 7 models
+- `softworker/addons/cbam/views/` — `cbam_declaration_views.xml` (form embeds an editable line list with a "Lookup Default EF" button), `cbam_declaration_line_views.xml`, `cbam_source_document_views.xml`, `cbam_menus.xml` (root menu + a Configuration submenu for the 5 reference-data models, using Odoo's auto-generated views — needed so the Many2one fields have something to select, wasn't explicitly asked for but the module is unusable without it)
+- `softworker/addons/cbam/reports/cbam_declaration_report.xml` — basic QWeb PDF summary (declarant, year, status, totals, one row per line)
 
 **Data-model addition beyond `projecthandoff.md` §6 (resolved with the user
 before coding):** the original schema had no field for `benchmark`,
@@ -185,21 +185,21 @@ so the module is currently empty on install.
 
 ---
 
-### M4 — LLM inference container (Machine A) — BLOCKED in this environment
+### M4 — LLM inference container (Hardworker) — BLOCKED in this environment
 
 **Why blocked:** steps 1-5 below need actual Docker + a real (or at least
-present) Machine A to pull and benchmark models against. This dev sandbox
+present) Hardworker to pull and benchmark models against. This dev sandbox
 has neither Docker nor an Ollama install (`docker --version` → command not
 found). Nothing here is a code deliverable I can produce without live
 infra - the `docker-compose.yml`/`nginx.conf.template` from M0 already
 contain everything needed to run this once real hardware is available.
 
-**Steps (unchanged from the plan, still to do on real Machine A hardware):**
-1. Bring up `machineA/docker-compose.yml`
+**Steps (unchanged from the plan, still to do on real Hardworker hardware):**
+1. Bring up `hardworker/docker-compose.yml`
 2. Pull candidate models: `qwen2.5:7b-instruct`, `qwen2.5:14b-instruct`, `llama3.1:8b-instruct`
 3. Benchmark tool-calling reliability (10 attempts each with a JSON tool schema) — does the model return valid JSON calls consistently?
 4. Pick the winner, document in `docs/model-benchmark.md`
-5. Verify nginx: `curl -H "X-Api-Key: wrong" https://machineA:8443/` → 401
+5. Verify nginx: `curl -H "X-Api-Key: wrong" https://hardworker:8443/` → 401
 
 ---
 
@@ -240,7 +240,7 @@ into this sandbox so the code below could be exercised for real (not just
 Ollama endpoint or Odoo instance was ever contacted. M4 being blocked means
 this has never run end-to-end.
 
-**Files created (all in `machineB/orchestrator/`):**
+**Files created (all in `softworker/orchestrator/`):**
 - `agent_loop.py` — `run_agent_loop()`, the tool-use loop from the skeleton below, generalized. Contains zero tool-ordering logic; the only name-based branch is detecting `flag_for_human_review` as a termination signal the model itself raised.
 - `tools.py` — `ToolDispatcher`, a name→handler dict (pure dispatch, not a workflow) implementing all 7 tools. `calculate_emissions` and `lookup_default_value` call `calc_engine` directly; `write_declaration_line` is the only one that calls `odoo_client.write_declaration_line()`.
 - `llm_client.py` — thin wrapper around `openai.OpenAI` pointed at Ollama's `/v1` endpoint; parses SDK responses into a small `LLMResponse`/`ToolCall` shape so `agent_loop.py` never touches the raw SDK. `@retry`-wrapped (tenacity) per the decided dependency list.
@@ -256,8 +256,8 @@ installed** - importing through `cbam.utils.calc_engine` would hit the same
 (see M2 section). Fixed the same way: `tools.py`/`odoo_client.py` import
 `calc_engine` as a bare module. This only works if `calc_engine.py` is on
 the container's path without going through `cbam/__init__.py`, so:
-- `machineB/tests/conftest.py` now also adds `machineB/orchestrator` to `sys.path`, alongside the existing `cbam/utils` entry, so tests can `import agent_loop`, `tools`, etc. as bare modules too.
-- `docker-compose.yml`'s `orchestrator` service build `context` changed from `./orchestrator` to `.` (machineB/), because the Dockerfile needs to `COPY addons/cbam/utils/calc_engine.py` in alongside the orchestrator's own files - a path outside the old, narrower build context. `dockerfile:` updated to `orchestrator/Dockerfile` to match.
+- `softworker/tests/conftest.py` now also adds `softworker/orchestrator` to `sys.path`, alongside the existing `cbam/utils` entry, so tests can `import agent_loop`, `tools`, etc. as bare modules too.
+- `docker-compose.yml`'s `orchestrator` service build `context` changed from `./orchestrator` to `.` (softworker/), because the Dockerfile needs to `COPY addons/cbam/utils/calc_engine.py` in alongside the orchestrator's own files - a path outside the old, narrower build context. `dockerfile:` updated to `orchestrator/Dockerfile` to match.
 
 **Loop skeleton actually implemented** (matches the plan's skeleton, with
 tool-call messages reconstructed in OpenAI's expected format and tool
@@ -290,16 +290,16 @@ this session didn't do strict red-green on) - the tests still assert real
 behavior (no mock-testing-mocks), but I didn't watch them fail first for
 that one file.
 
-**Done:** `pytest machineB/tests/ -q` → 41 passed (15 M2 + 11 tools + 7 agent_loop + 3 llm_client + 5 main).
+**Done:** `pytest softworker/tests/ -q` → 41 passed (15 M2 + 11 tools + 7 agent_loop + 3 llm_client + 5 main).
 
 **Not done:** committed in `2d89d37`; no live LLM or Odoo was ever contacted; `SYSTEM_PROMPT` is a first draft, unrefined by any actual model behavior since M4 is blocked; in-memory job store has no persistence (acceptable for this academic scope, flagged as a known limitation).
 
-**Correctness/security review (2026-07-31) — 3 real bugs found and fixed, all in `machineB/orchestrator/`:**
+**Correctness/security review (2026-07-31) — 3 real bugs found and fixed, all in `softworker/orchestrator/`:**
 1. `odoo_client.py` `write_declaration_line()` called `model.create(data)`, always creating a brand-new, disconnected `cbam.declaration.line` instead of updating the job's own `declaration_line_id` (the line the source document is attached to and the one Odoo's UI reloads per this doc's own data-flow step 6). Fixed to `model.write([declaration_line_id], data)`, with `declaration_line_id` supplied from the job's own scope (`tools.py`), never from the LLM - same reasoning as the existing `declaration_id` check.
 2. `tools.py` `ToolDispatcher` had no guard against `write_declaration_line` being called more than once in a job - `agent_loop.py` only treats `flag_for_human_review` as a loop terminator, so nothing stopped a non-converging model from writing twice, violating section 7's "single write... do not let the agent write mid-loop." Added a one-shot flag on the dispatcher (not tool-ordering logic - it doesn't constrain what runs before/after, only refuses to repeat the one side-effecting call).
 3. `llm_client.py` did a bare `json.loads(call.function.arguments)` with no handling for malformed JSON - a real, expected failure mode for 7-8B models that this doc already anticipates for tool-calling generally. This raised `json.JSONDecodeError` straight out of `chat()`, uncaught by the tenacity retry (not a retryable error type) and uncaught by `agent_loop.py`, crashing the whole job instead of giving the model a chance to self-correct. Fixed to fall back to a placeholder args dict that Pydantic's existing `tool_args.py` validation rejects the same way it already rejects any other malformed tool call - fed back to the model as a tool error, not a crash.
 
-Architectural compliance re-verified: the only tool-name branch in `agent_loop.py` is still the documented `flag_for_human_review` termination check; tool execution order within a turn is preserved (not resorted); Odoo stays read-only until the single write. 3 new/updated tests added (`test_tools.py` x2, `test_llm_client.py` x1); `pytest machineB/tests/ -q` → 70 passed after the fixes (no existing test's expectations changed).
+Architectural compliance re-verified: the only tool-name branch in `agent_loop.py` is still the documented `flag_for_human_review` termination check; tool execution order within a turn is preserved (not resorted); Odoo stays read-only until the single write. 3 new/updated tests added (`test_tools.py` x2, `test_llm_client.py` x1); `pytest softworker/tests/ -q` → 70 passed after the fixes (no existing test's expectations changed).
 
 ---
 
@@ -443,12 +443,12 @@ record with exact quotes: `docs/m7-source-verification.md`.
 
 ### M8 — Security hardening (built/verified 2026-07-30, commit `2d89d37`)
 
-- **8a - Odoo record rules:** `machineB/addons/cbam/security/cbam_security_rules.xml` (new) - `ir.rule` records scoping `cbam.declaration`, `cbam.declaration.line`, and `cbam.source.document` to `[('declarant_id', '=', user.partner_id.id)]` (and the equivalent traversal for the two child models) for `base.group_user` only; `base.group_system` is untouched by these rules and keeps the unrestricted access `ir.model.access.csv` already grants. Added to `__manifest__.py`'s `data` list. Not runtime-verified (same Odoo-instance caveat as M3).
-- **8b - Pydantic tool-argument validation:** `machineB/orchestrator/tool_args.py` (new) - one Pydantic model per tool, mirroring `shared/tool_schemas/*.json` field-for-field (including the enums). `ToolDispatcher.execute()` now validates args through the matching model before calling the handler; a `ValidationError` becomes a `ValueError`, which `agent_loop.py` already catches and feeds back to the model as a tool error instead of crashing on a malformed call from a small model. 4 new tests added to `test_tools.py` (missing required arg, wrong type, invalid enum on two different tools) - all TDD'd (confirmed failing with `TypeError`/no-error before the validation existed).
-- **8c - nginx rate limits / ACL:** reviewed, not rebuilt - M0 already has this right. `machineA/nginx.conf.template` rejects any request without a matching `X-Api-Key` (401) and rate-limits at 10 r/s with a burst of 20. `tailscale-acl-example.json` restricts Machine B → Machine A:8443 TCP only and has an explicit test asserting the reverse direction (A → B:8069/5432) is denied. `OLLAMA_BASE_URL` is documented as `http://` (not https) consistently in both nginx and `.env.example` - intentional, encryption is the Tailscale WireGuard tunnel's job, not an app-layer TLS cert nobody asked to manage.
-- **8d - `.env` hygiene + secret rotation:** verified `git check-ignore -v machineA/.env machineB/.env` - both match the root `.gitignore`'s `*.env` pattern. Verified `git log --all --full-history -- '*.env'` returns nothing - no `.env` file has ever been committed. Wrote `docs/secret-rotation.md`: rotation steps for `OLLAMA_API_KEY`, `TS_AUTHKEY`, `POSTGRES_PASSWORD`, `ODOO_PASSWORD`, plus a periodic check for accidental force-adds.
+- **8a - Odoo record rules:** `softworker/addons/cbam/security/cbam_security_rules.xml` (new) - `ir.rule` records scoping `cbam.declaration`, `cbam.declaration.line`, and `cbam.source.document` to `[('declarant_id', '=', user.partner_id.id)]` (and the equivalent traversal for the two child models) for `base.group_user` only; `base.group_system` is untouched by these rules and keeps the unrestricted access `ir.model.access.csv` already grants. Added to `__manifest__.py`'s `data` list. Not runtime-verified (same Odoo-instance caveat as M3).
+- **8b - Pydantic tool-argument validation:** `softworker/orchestrator/tool_args.py` (new) - one Pydantic model per tool, mirroring `shared/tool_schemas/*.json` field-for-field (including the enums). `ToolDispatcher.execute()` now validates args through the matching model before calling the handler; a `ValidationError` becomes a `ValueError`, which `agent_loop.py` already catches and feeds back to the model as a tool error instead of crashing on a malformed call from a small model. 4 new tests added to `test_tools.py` (missing required arg, wrong type, invalid enum on two different tools) - all TDD'd (confirmed failing with `TypeError`/no-error before the validation existed).
+- **8c - nginx rate limits / ACL:** reviewed, not rebuilt - M0 already has this right. `hardworker/nginx.conf.template` rejects any request without a matching `X-Api-Key` (401) and rate-limits at 10 r/s with a burst of 20. `tailscale-acl-example.json` restricts Softworker → Hardworker:8443 TCP only and has an explicit test asserting the reverse direction (A → B:8069/5432) is denied. `OLLAMA_BASE_URL` is documented as `http://` (not https) consistently in both nginx and `.env.example` - intentional, encryption is the Tailscale WireGuard tunnel's job, not an app-layer TLS cert nobody asked to manage.
+- **8d - `.env` hygiene + secret rotation:** verified `git check-ignore -v hardworker/.env softworker/.env` - both match the root `.gitignore`'s `*.env` pattern. Verified `git log --all --full-history -- '*.env'` returns nothing - no `.env` file has ever been committed. Wrote `docs/secret-rotation.md`: rotation steps for `OLLAMA_API_KEY`, `TS_AUTHKEY`, `POSTGRES_PASSWORD`, `ODOO_PASSWORD`, plus a periodic check for accidental force-adds.
 
-**Done:** `pytest machineB/tests/test_tools.py -v` → all pass (15, incl. the 4 new ones); `.env`/git history checks passed with real commands, not assumed.
+**Done:** `pytest softworker/tests/test_tools.py -v` → all pass (15, incl. the 4 new ones); `.env`/git history checks passed with real commands, not assumed.
 
 ---
 
@@ -508,7 +508,7 @@ now instead.
   pairing a steel good with an aluminium installation (each sector lives on
   its own unrelated Selection field); now raises a `ValidationError`.
 
-**Orchestrator (`machineB/orchestrator/`):** see the M6 section above for
+**Orchestrator (`softworker/orchestrator/`):** see the M6 section above for
 the 3 bugs fixed there (orphan-record write, missing single-write guard,
 crash on malformed LLM tool-call JSON). Additionally, `MAX_AGENT_ITERATIONS`
 is now clamped to `[8, 10]` in `main.py` regardless of env misconfiguration,
@@ -517,7 +517,7 @@ trusting the env var unclamped. `ORCHESTRATOR_API_KEY` enforcement
 (fail-closed, constant-time comparison, checked on both endpoints) was
 reviewed and found already correct — no change needed.
 
-**Infra (`machineA/`, `machineB/docker-compose.yml`, Dockerfile):** 3
+**Infra (`hardworker/`, `softworker/docker-compose.yml`, Dockerfile):** 3
 deployment-breaking bugs fixed — the nginx template's invalid nested
 `http`/`events` blocks (nginx would refuse to start), the missing
 `OLLAMA_API_KEY` in the nginx container's own environment (the key check
@@ -558,7 +558,7 @@ constraint — could bleed a benchmark across sectors sharing a CN code.
   a type-mismatched ground-truth/written pair instead of coercing or
   returning `False` — fixed to coerce with a `try/except` fallback to `False`.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 108
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 108
 passed (was 103 before this pass; net +5 from new regression tests, no
 existing test's expected values needed changing). All `.py` files compile,
 all `.xml` files parse. All Odoo-model-layer fixes remain
@@ -586,16 +586,16 @@ evidence for all four. M7 (real emission-factor numbers) stayed explicitly
 out of scope — a primary-source research task, not an infra task.
 
 **Machine topology deviation:** the decided architecture is two Tailscale-
-meshed machines (Machine A running Ollama+nginx, Machine B running
+meshed machines (Hardworker running Ollama+nginx, Softworker running
 Odoo+orchestrator). This machine has no Tailscale install and the intended
-Machine B was not reachable this session, so standing up the real
+Softworker was not reachable this session, so standing up the real
 cross-machine mesh was out of scope here. Instead, `docker-compose.local-dev.yml`
 (new, committed, clearly header-labeled as dev-only) runs everything on this
-one host — Ollama + nginx (reusing `machineA/nginx.conf.template`
+one host — Ollama + nginx (reusing `hardworker/nginx.conf.template`
 byte-for-byte) + Postgres + Odoo + orchestrator — reaching each other over
-`localhost` with no Tailscale sidecar. `machineA/docker-compose.yml` /
-`machineB/docker-compose.yml` are unmodified and remain the real deployment
-topology for when Machine B is available. Full rationale in
+`localhost` with no Tailscale sidecar. `hardworker/docker-compose.yml` /
+`softworker/docker-compose.yml` are unmodified and remain the real deployment
+topology for when Softworker is available. Full rationale in
 `docs/superpowers/specs/2026-09-06-m4-live-infra-design.md`'s "Non-goals" and
 "Approach" sections. A follow-up session (Task 7, 2026-09-08) attempted to
 close this deviation but found Tailscale still not installed on the
@@ -606,15 +606,15 @@ topology until that changes.
 **M4 — real model benchmark (commit `9d4851a`):** 4 candidate models
 benchmarked for real against a live local `ollama serve`, 10 tool-calling
 attempts each, scored against the exact production Pydantic validation in
-`machineB/orchestrator/tool_args.py`. Winner: `llama3.1:8b` (the real Ollama
+`softworker/orchestrator/tool_args.py`. Winner: `llama3.1:8b` (the real Ollama
 tag — `llama3.1:8b-instruct` from the original plan doesn't exist as a
 published tag) at 50% valid-rate, ahead of `qwen2.5:7b-instruct` (40%),
 `qwen3:8b` (0%), and `qwen2.5:14b-instruct` (0%, both zero-scores from
 emitting multiple tool calls per turn rather than the one this benchmark
 scores). Full methodology and numbers: `docs/model-benchmark.md`. The nginx
-gate — `machineA/nginx.conf.template`, reused byte-for-byte by the
+gate — `hardworker/nginx.conf.template`, reused byte-for-byte by the
 `docker-compose.local-dev.yml` stack described above (no Tailscale sidecar
-on this host, so the real `machineA/docker-compose.yml` topology itself was
+on this host, so the real `hardworker/docker-compose.yml` topology itself was
 not brought up) — was then verified for real: wrong `X-Api-Key` → 401,
 correct key → 200 with the real Ollama model list.
 
@@ -667,7 +667,7 @@ evidence the model can't call tools at all, and not a harness bug
 `agent_loop.py`, `tools.py`, and `tool_args.py` needed no changes). Full
 report: `docs/evaluation.md`.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 122
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 122
 passed (unchanged from the count recorded in `b1a7d17`; no existing test's
 expectations changed as part of this pass).
 
@@ -677,7 +677,7 @@ expectations changed as part of this pass).
 
 Direct follow-up to M6/M9 above's finding — "the model calls tools but
 never reaches `write_declaration_line`". The fix is text-only: the
-orchestrator's `SYSTEM_PROMPT` (`machineB/orchestrator/main.py`) now states
+orchestrator's `SYSTEM_PROMPT` (`softworker/orchestrator/main.py`) now states
 explicitly that the task is not finished until `write_declaration_line` has
 been called, tells the model to call `flag_for_human_review` rather than
 just stopping when it can't converge, and tells it to gather real values via
@@ -686,7 +686,7 @@ rather than passing placeholder/zero values. `write_declaration_line.json`'s
 schema `description` gained one sentence stating the same completion signal
 at the tool-schema level. Per this task's own constraint,
 `agent_loop.py` and `tools.py` were not touched — confirmed with `git diff
---stat machineB/orchestrator/agent_loop.py machineB/orchestrator/tools.py`
+--stat softworker/orchestrator/agent_loop.py softworker/orchestrator/tools.py`
 returning empty output before committing (commit `dfe14c2`).
 
 **Re-running M6 (`docs/m6-live-verification.md`, overwritten by this pass):**
@@ -718,7 +718,7 @@ went down and escalations went up, and per-field accuracy is unchanged at
 
 **Bug found in this first re-run:** `shared/evaluation/run_evaluation.py`
 defined its own separate, shorter `SYSTEM_PROMPT` constant, never imported
-from `machineB/orchestrator/main.py`. This meant the first M9 re-run above
+from `softworker/orchestrator/main.py`. This meant the first M9 re-run above
 never actually exercised this task's `SYSTEM_PROMPT` strengthening — only
 the `write_declaration_line.json` schema-description change was in effect
 for that run. The M6 re-run above was, until the fix below, the only real
@@ -784,7 +784,7 @@ be recreated from scratch in this worktree — fresh random secrets, a fresh
 run (new `cbam` database, module install, seeded fixtures) before Step 9's
 smoke test had anything to work with. None of this touched repo state.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 127 passed
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 127 passed
 (125 + the 2 new regression tests from this task's Step 1; no existing
 test's expectations changed; unchanged after the `run_evaluation.py` prompt-
 unification fix).
@@ -800,12 +800,12 @@ doc's own claims first. Verdict: 8/10 - the "zero business logic in the
 orchestrator" and "0% field accuracy" claims both held up under line-by-line
 adversarial review, no committed secrets, and the M7 "known gaps" already
 documented above matched the code exactly. Full findings led to these
-follow-ups, all applied and tested (`python -m pytest machineB/tests/
+follow-ups, all applied and tested (`python -m pytest softworker/tests/
 shared/ -q` → 130 passed):
 
 **Dependency pinning + repo hygiene:** all Docker image tags
 (`tailscale/tailscale`, `ollama/ollama`, `nginx`, `postgres`, `odoo` across
-`machineA/docker-compose.yml`, `machineB/docker-compose.yml`,
+`hardworker/docker-compose.yml`, `softworker/docker-compose.yml`,
 `docker-compose.local-dev.yml`) and all three `requirements*.txt` files
 pinned to specific, verified-current versions (previously `:latest`/
 unpinned - a real reproducibility risk for an academic project graded
@@ -816,7 +816,7 @@ explaining the Jan-1-of-reporting-year date assumption.
 
 **`GoodBenchmarkSeed` route-dimension fix (the concrete M7 caveat above):**
 `cbam.good.benchmark` is now its own Odoo model
-(`machineB/addons/cbam/models/cbam_good_benchmark.py`), keyed on
+(`softworker/addons/cbam/models/cbam_good_benchmark.py`), keyed on
 `(good_id, production_route_id)` instead of a flat `benchmark` field on
 `cbam.good` keyed only by `(cn_code, sector)`. `cbam_declaration_line.py`
 gained a stored `good_benchmark_id` compute (same `@api.depends`-tracking
@@ -848,7 +848,7 @@ when `data_source=default`"; the schema's own description also promises
 "must be omitted/null when `data_source=actual`", which nothing enforced.
 Added the missing direction plus a regression test
 (`test_write_declaration_line_rejects_emission_factor_id_for_actual_source`
-in `machineB/tests/test_tools.py`).
+in `softworker/tests/test_tools.py`).
 
 **Not done, deliberately out of scope for this pass:** the model's 0%
 field-accuracy problem itself (the audit's highest-priority open item) -
@@ -964,7 +964,7 @@ and reframing the academic contribution around the harness/methodology
 itself rather than a working extractor - a real, defensible finding either
 way, but a decision for the human partner, not one to make silently here.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 131
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 131
 passed (130 + 1 new regression test); no existing test's expectations
 changed.
 
@@ -1082,7 +1082,7 @@ accuracy, not plumbing) would need either a stronger model or dedicated
 few-shot/retry work on `extract_field` itself; a full 20-record run is
 still blocked on this machine's available RAM.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 135
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 135
 passed (131 + 4 new regression tests); no existing test's expectations
 changed except the one replaced test named above.
 
@@ -1194,7 +1194,7 @@ model-supplied), so a stray/mistaken `lookup_default_value` call on an
 `"actual"`-sourced line (also observed live) can't clobber a genuinely-
 extracted measured value. Two new regression tests cover both directions
 (the fill-in, and the must-not-clobber case) plus one for the injection
-itself; `machineB/tests/test_tools.py`.
+itself; `softworker/tests/test_tools.py`.
 
 **A separate, structural bug found while testing this fix live - blocked
 the entire `data_source="default"` pathway from ever working in real
@@ -1312,7 +1312,7 @@ returns raw text; the model itself does the reading, so there is no
 structured number for `ToolDispatcher` to remember and re-inject), the
 narrower architectural fix from the section above doesn't apply directly.
 Added one explicit paragraph to `SYSTEM_PROMPT`
-(`machineB/orchestrator/main.py`) stating plainly that
+(`softworker/orchestrator/main.py`) stating plainly that
 `calculate_emissions`'s `embedded_emissions_total` is a preview, not the
 write payload, and that `write_declaration_line` must separately carry the
 same `direct_emissions_actual`/`indirect_emissions_actual`/
@@ -1500,7 +1500,7 @@ steel EAF_DRI's `direct_ef` gap. Stays `benchmark=None` - not guessed.
 derivation, exact quotes, and the complete extracted benchmark table:
 `docs/m7-source-verification.md`'s "2026-09-09 addendum" section.
 
-**Verification:** `python -m pytest machineB/tests/ shared/ -q` → 142
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 142
 passed (no count change - one test's expected list shrank by one item,
 matching the resolved field; no other test's expectations changed).
 
@@ -1686,10 +1686,87 @@ comparison, not a code change.
 
 ---
 
+## Rename to hardworker/softworker, and the first real softworker deployment (2026-09-09)
+
+At the human partner's request, renamed every "Machine A"/"Machine B"
+reference across the repo to "hardworker" (LLM host) / "softworker" (Odoo
+host) - directories included (`git mv machineA hardworker`, `git mv machineB
+softworker`), plus container names, Tailscale hostnames (`cbam-hardworker`/
+`cbam-softworker`), Docker build/COPY paths, and every prose mention in
+`README.md`/`projecthandoff.md`/this file/historical `docs/superpowers/`
+plans. Verified after the rename: all 3 `docker-compose.yml` files
+(`hardworker/`, `softworker/`, `docker-compose.local-dev.yml`) still parse
+with `docker compose config`, and the full test suite still passes (142
+passed) - the rename touched only names, no logic.
+
+**Then the actual point of the session: bring the softworker up on real,
+physical hardware for the first time** (Task 7's Tailscale install had been
+deferred since M0; this is the first time any of this has run outside
+`docker-compose.local-dev.yml`'s single-host stand-in). Hit a real, still-
+unexplained blocker doing this the documented way: the Tailscale admin
+console's key-generation page (`login.tailscale.com/admin/settings/keys`)
+produced auth keys containing the literal substring `CNTRL` - reproduced
+across 3 separately generated keys, via the dedicated copy button (not
+manual selection), and in an incognito window with no extensions, ruling out
+a browser-extension or clipboard-tool explanation on this end. Every key
+generated this way was rejected outright by Tailscale's real control server
+(`invalid key: API key ... not valid`) when the `tailscale` sidecar
+container tried to authenticate - not a cosmetic issue, a genuinely broken
+key. Root cause not found from this side; flagged to the human partner as
+worth reporting to Tailscale support directly rather than continuing to
+debug blind.
+
+**Workaround, chosen by the human partner over two alternatives** (keep
+fighting the admin console, or defer Tailscale entirely and stay
+bridge-network-only): this physical host already runs its own Tailscale
+client natively and is already on the tailnet (confirmed via `tailscale
+status`: node `rami`, `100.107.246.65`, account `Rami-ayounii@`, genuinely
+authenticated - the host's own connection is not part of whatever is broken
+in the admin console). Rewrote `softworker/docker-compose.yml` to drop the
+`tailscale` sidecar service entirely: `odoo` and `orchestrator` now publish
+their ports straight to the host (`8069`, `8000`) and both join the
+`internal` bridge network directly (`orchestrator`'s `ODOO_URL` changed from
+`http://127.0.0.1:8069`, which relied on sharing the sidecar's network
+namespace, to `http://odoo:8069`, Docker's own service-name DNS). Documented
+the trade-off in a header comment on the compose file itself: this drops the
+per-role Tailscale identity (`cbam-softworker`) and the tag-scoped ACLs in
+`tailscale-acl-example.json` in favor of reachability via this host's own
+general-purpose node - revisit once the admin console bug is understood.
+
+**Real verification, not just "containers started":** brought up
+`softworker/docker-compose.yml` for real (Postgres 16, Odoo 17, the
+orchestrator image built from `softworker/orchestrator/Dockerfile`).
+Confirmed both Odoo (`/web/login`) and the orchestrator (`/docs`) answer
+`http` requests on `localhost` **and** on the host's real tailnet IP
+(`100.107.246.65`) - genuinely reachable over Tailscale, just via the host's
+identity instead of a dedicated one. Ran `scripts/init_local_dev_odoo.py`
+against this real instance (not the local-dev stack it was originally
+written for - reused as-is, no changes needed): created the `cbam` database,
+installed the `cbam` module, seeded `shared/data/dev_fixtures.py`'s fixtures.
+Verified over real RPC (`odoorpc`, not just trusting the script's own
+success message): `cbam.good` = 2, `cbam.installation` = 6,
+`cbam.emission.factor` = 6, `cbam.production.route` = 3, `cbam.declaration`
+= 0 (fresh, as expected) - exact match to the fixture counts the script
+reported.
+
+**Not done:** the hardworker isn't up yet, so `OLLAMA_BASE_URL` in
+`softworker/.env` is still a placeholder and the orchestrator's agent loop
+has not been exercised against this real deployment (only Odoo/Postgres/the
+orchestrator's HTTP shell are verified so far - no LLM calls yet). The
+Tailscale admin console bug remains unresolved and unexplained.
+
+**Verification:** `docker compose config` on all 3 compose files after the
+rename; `python -m pytest softworker/tests/ shared/ -q` → 142 passed;
+`curl` against both `localhost` and the tailnet IP for `odoo:8069` and
+`orchestrator:8000`; real `odoorpc` queries against the live database
+confirming exact fixture counts.
+
+---
+
 ## Architecture Reference
 
 ```
-Machine A                          Machine B
+Hardworker                          Softworker
 ─────────────────────              ───────────────────────────────
 Tailscale sidecar                  Tailscale sidecar
 nginx:8443 (API key gate)  ←───── orchestrator (FastAPI)

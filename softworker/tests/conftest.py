@@ -3,7 +3,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Point straight at cbam/utils/, not machineB/addons/, so importing
+# Point straight at cbam/utils/, not softworker/addons/, so importing
 # calc_engine never executes cbam/__init__.py (which imports models, which
 # imports `odoo` - not installed outside a real Odoo environment). This
 # keeps the calc engine unit-testable standalone, as designed in M2. The
