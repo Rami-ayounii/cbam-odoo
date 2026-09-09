@@ -13,7 +13,7 @@
 | M1 — Synthetic data generator | **Done** | `58c4baa` |
 | M2 — Calculation engine | **Done** (certificate formula corrected later, see commit `db50c1f`) | `2d89d37` |
 | M3 — Odoo module (`cbam`) | **Done, live-installed** (real Odoo 17 + Postgres, no addon changes needed) | `6a2e1b4` |
-| M4 — LLM inference container (Machine A) | **Done** — real benchmark, winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real; re-confirmed on the real fixed harness (2026-09-09) — `qwen2.5:7b-instruct` (the 40% runner-up) scored 10/10 exhausted, 0% accuracy, worse than `llama3.1:8b`'s real numbers on identical records, see "Model comparison" section | `9d4851a` |
+| M4 — LLM inference container (Machine A) | **Done** — original raw benchmark winner `llama3.1:8b` (50% valid-rate), nginx API-key gate verified for real. Re-tested on the real fixed harness (2026-09-09): `qwen2.5:7b-instruct` (the 40% runner-up) scored worse (10/10 exhausted, 0% accuracy) — "Model comparison" section — but `qwen3:8b` (originally 0% valid-rate, dismissed) essentially **tied** `llama3.1:8b` on field accuracy while completing twice as often with zero escalations — the original 0% ranking was a benchmark-methodology artifact, not a real capability gap; see "qwen3:8b re-test" section. Model choice is now genuinely open between llama3.1:8b and qwen3:8b, not settled | `9d4851a` |
 | M5 — Tool schemas | **Done** | `2d89d37` |
 | M6 — Orchestrator agent loop | **Done, live-verified** (first real end-to-end LLM+Odoo run; job `completed`, 3 real infra bugs found and fixed — that run's status was later reclassified `no_write`, see Agentic completion-gap follow-up section) — see the Real production-path verification section for the first run that genuinely wrote a real row via the real API (values still wrong: a value-carryover failure between the model's own tool calls, not a plumbing bug) | `b1a7d17` |
 | M7 — Versioned emission factor data load | **Done, real data resolved (not yet loaded into a live Odoo instance)** — 2 EU ETS benchmarks, the 2026 markup rate, 4 of 5 country/route emission factors (Turkiye BF-BOF, Azerbaijan EAF_scrap, Bahrain primary_electrolysis, Tunisia secondary_recycled), the 2026 `reference_certificate_price` (average of the two published quarters), and `cbam_factor_year` (0.025 for 2026) are real and cited; steel EAF_DRI's `direct_ef` stays blocked (structurally absent from the source); `cbam.good.benchmark` gained a real route dimension ("Independent audit + follow-up fixes" section) and its steel EAF_scrap benchmark is now resolved too (0.142, a real "EAF carbon steel" row — see "M7 benchmark research" section); aluminium secondary_recycled's benchmark is re-confirmed genuinely absent from the source, not unchecked — `find_incomplete_seeds()` now returns 2 items | `2a4deec`, `c35dbbe`, `4923a9e` |
@@ -1628,6 +1628,58 @@ tool calls per turn - that `agent_loop.py` may actually handle correctly,
 since it explicitly preserves the model's own multi-call ordering within
 a turn rather than rejecting it; this remains a real, unexplored
 possibility for a future session, not ruled out).
+
+**Verification:** no test suite changes - a real live-infra model
+comparison, not a code change.
+
+---
+
+## qwen3:8b re-test: a real correction to M4's model ranking (2026-09-09)
+
+Direct continuation - the human partner asked to pursue exactly the
+"remains a real, unexplored possibility" item the section above named.
+M4's raw tool-calling benchmark had scored `qwen3:8b` at **0%** valid-call
+rate, attributed to "emitting multiple tool calls per turn rather than
+the one this benchmark scores" - a real property of the model, but
+possibly an artifact of that benchmark's narrower scoring rule rather
+than a real capability gap, since `agent_loop.py` itself explicitly
+preserves and executes a model's own multi-tool-call ordering within one
+turn (a tested architectural property, not an assumption).
+
+Pulled `qwen3:8b` into the container (5.2 GB) and ran the identical 2
+batches of 5 (records 0-9) used for `llama3.1:8b` and
+`qwen2.5:7b-instruct`, same day, same fixes, same harness.
+
+**Result - M4's 0% ranking does not hold up on the real harness:** 8/10
+completed (0 escalated, 2 exhausted), and per-field accuracy on the exact
+same 10 records essentially **tied** with `llama3.1:8b`'s own numbers on
+those same 10 records (30%/30%/30%/12%/12% vs. `qwen3:8b`'s
+30%/30%/20%/12%/12% - differing by exactly one record on one field).
+`qwen3:8b` reached a terminal, successful action twice as often (8/10 vs.
+4/10) and never escalated once, vs. `llama3.1:8b` escalating on half the
+sample. Full comparison table: `docs/evaluation-qwen3-8b-2026-09-09.md`.
+
+**A genuine correction surfaced along the way:** one `qwen3:8b` record
+(`SYNTH-0004`) came back `status="exhausted"` yet scored 6/6 fields
+correct - a real write happened before the loop exhausted its iteration
+cap. This corrects an assumption stated in "The honest broader-sample
+check" section above ("escalated/exhausted... never write by
+definition") - `agent_loop.py` only terminates early on
+`flag_for_human_review`; nothing stops the model from writing
+successfully and then continuing to call more tools until the cap forces
+an `exhausted` exit. Escalation genuinely never writes (that path is a
+real early return); exhaustion can follow a real write.
+
+**Conclusion:** on this session's own same-day, same-records, same-
+harness, same-fixes evidence, `qwen3:8b` is at least as good a choice as
+`llama3.1:8b` for this project's actual tool schemas - arguably better,
+given its higher completion rate at tied accuracy. M4's original
+benchmark measured something real (multi-call-per-turn behavior) but drew
+the wrong practical conclusion from it (unusable) because its scoring
+rule didn't match how this project's real agent loop actually works.
+`qwen2.5:14b-instruct` (M4's other 0%-scoring model, same underlying
+reason) remains untested against this harness - a real open question for
+a future session, not this one, given time already spent tonight.
 
 **Verification:** no test suite changes - a real live-infra model
 comparison, not a code change.
