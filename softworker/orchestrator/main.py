@@ -273,6 +273,14 @@ def _run_job(job_id: str, request: JobRequest):
             status=reported_status,
             final_message=final_message,
             iterations=result.iterations,
+            # Observability only, per the ReAct-style prompting clarification
+            # in the report: how often the model actually stated its
+            # reasoning before a tool call vs. how many real tool-call turns
+            # it took, surfaced here rather than left buried in the full
+            # trace so a consumer of GET /jobs/{id}/status doesn't have to
+            # parse raw_llm_output to see it.
+            tool_call_turns=result.tool_call_turns,
+            reasoning_turns=result.reasoning_turns,
         )
     except Exception as exc:
         _JOBS[job_id].update(status="failed", error=_redact_secrets(str(exc)))

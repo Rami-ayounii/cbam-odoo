@@ -1850,6 +1850,38 @@ against already-tested code, not a code change.
 
 ---
 
+## Observability: tool-call vs. reasoning-turn counts (2026-09-16)
+
+Follow-up to the ReAct-style prompting change in the "Anti-hallucination
+gate" section above - `SYSTEM_PROMPT` now asks the model to state its
+reasoning in its own message content before calling a tool, but nothing
+verified whether it actually did, or how often, since `agent_loop.py`
+deliberately never enforces or parses that structure (would reintroduce the
+tool-ordering anti-pattern `projecthandoff.md` rules out).
+
+**What changed:** `AgentLoopResult` gained two counters, tracked purely for
+observability - nothing reads or branches on them inside the loop itself:
+- `tool_call_turns` - real model turns that made at least one tool call
+  (excludes the iteration-cap fallback `flag_for_human_review`, which never
+  goes through the model).
+- `reasoning_turns` - the subset of those turns where the model's own
+  message `content` was non-empty.
+
+`main.py`'s `_run_job()` threads both values into the job status dict, so a
+consumer of `GET /jobs/{id}/status` can see the reasoning rate without
+parsing `raw_llm_output`.
+
+**Tests:** 3 new tests in `test_agent_loop.py` (mixed reasoning/no-reasoning
+turns counted correctly on the `completed` path; counted on the `escalated`
+path; the iteration-cap auto-escalation excluded from both counts so it
+doesn't understate the model's real reasoning rate) and 1 in `test_main.py`
+asserting the job status dict surfaces both fields.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 149
+passed (145 + 4 new tests; no existing test's expectations changed).
+
+---
+
 ## Architecture Reference
 
 ```

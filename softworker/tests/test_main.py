@@ -253,6 +253,10 @@ def test_run_job_reports_completed_when_the_model_actually_writes_a_result(monke
 
     assert main._JOBS[job_id]["status"] == "completed"
     assert captured["extraction_status"] == "extracted"
+    # Observability only (see agent_loop.AgentLoopResult): the one real
+    # model turn made a tool call with no reasoning stated in its content.
+    assert main._JOBS[job_id]["tool_call_turns"] == 1
+    assert main._JOBS[job_id]["reasoning_turns"] == 0
 
 
 def test_run_job_redacts_configured_secrets_from_error_message(monkeypatch):

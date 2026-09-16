@@ -197,6 +197,101 @@ def test_loop_feeds_tool_errors_back_to_the_model_without_crashing():
     assert any("no factor on file" in m["content"] for m in tool_messages)
 
 
+def test_result_counts_tool_call_turns_and_which_ones_stated_reasoning_first():
+    # Observability only: the prompt asks the model to state its reasoning
+    # (a ReAct-style Thought) in its own message content before calling a
+    # tool, but nothing in the loop enforces or parses that - this counts
+    # how often it actually happened, without rejecting the turns that
+    # skipped it. Turn 1 reasons before acting, turn 2 doesn't, turn 3 has
+    # no tool calls at all (the model is done).
+    llm_client = FakeLLMClient(
+        [
+            FakeLLMResponse(
+                content="Quantity is missing, I should extract it first.",
+                tool_calls=[FakeToolCall("c1", "extract_field", {"field_name": "quantity_tonnes"})],
+            ),
+            FakeLLMResponse(
+                content=None,
+                tool_calls=[FakeToolCall("c2", "lookup_default_value", {"sector": "steel"})],
+            ),
+            FakeLLMResponse(content="done"),
+        ]
+    )
+
+    result = run_agent_loop(
+        messages=[],
+        llm_client=llm_client,
+        tool_schemas=[],
+        execute_tool=_recording_execute_tool([]),
+        max_iterations=10,
+    )
+
+    assert result.status == "completed"
+    assert result.iterations == 3
+    assert result.tool_call_turns == 2
+    assert result.reasoning_turns == 1
+
+
+def test_reasoning_turns_counted_on_the_escalated_path_too():
+    llm_client = FakeLLMClient(
+        [
+            FakeLLMResponse(
+                content="Data is inconsistent, escalating.",
+                tool_calls=[FakeToolCall("c1", "flag_for_human_review", {"reason": "bad data"})],
+            )
+        ]
+    )
+
+    result = run_agent_loop(
+        messages=[],
+        llm_client=llm_client,
+        tool_schemas=[],
+        execute_tool=_recording_execute_tool(
+            [], results={"flag_for_human_review": {"acknowledged": True, "reason": "bad data"}}
+        ),
+        max_iterations=10,
+    )
+
+    assert result.status == "escalated"
+    assert result.tool_call_turns == 1
+    assert result.reasoning_turns == 1
+
+
+def test_the_automatic_iteration_cap_escalation_is_not_counted_as_a_reasoning_turn():
+    # The fallback flag_for_human_review call the loop injects when the cap
+    # is reached never went through the model - it must not be counted as
+    # a (reasoning-less) model turn, which would understate the model's
+    # own real reasoning rate.
+    responses = [
+        FakeLLMResponse(
+            content=None,
+            tool_calls=[FakeToolCall(f"c{i}", "extract_field", {"i": i})],
+        )
+        for i in range(3)
+    ]
+    llm_client = FakeLLMClient(responses)
+
+    result = run_agent_loop(
+        messages=[],
+        llm_client=llm_client,
+        tool_schemas=[],
+        execute_tool=_recording_execute_tool(
+            [],
+            results={
+                "flag_for_human_review": {
+                    "acknowledged": True,
+                    "reason": "iteration cap (3) reached without convergence",
+                }
+            },
+        ),
+        max_iterations=3,
+    )
+
+    assert result.status == "exhausted"
+    assert result.tool_call_turns == 3
+    assert result.reasoning_turns == 0
+
+
 def test_assistant_tool_call_message_is_reconstructed_for_the_next_turn():
     llm_client = FakeLLMClient(
         [

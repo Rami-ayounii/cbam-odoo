@@ -19,6 +19,17 @@ class AgentLoopResult:
     final_message: Optional[str]
     messages: List[dict] = field(default_factory=list)
     iterations: int = 0
+    # Observability only, per the project's ReAct-style prompting (main.py's
+    # SYSTEM_PROMPT asks the model to state its reasoning in its own message
+    # content before calling a tool) - nothing here enforces or parses that
+    # reasoning, it is only counted, so a turn that skips it is never
+    # rejected or altered. tool_call_turns counts genuine model turns that
+    # made at least one tool call; reasoning_turns is the subset of those
+    # where the model's own content was non-empty. The iteration-cap
+    # fallback call never went through the model, so it is excluded from
+    # both counts.
+    tool_call_turns: int = 0
+    reasoning_turns: int = 0
 
 
 @dataclass
@@ -64,6 +75,8 @@ def run_agent_loop(
     max_iterations: int = 10,
 ) -> AgentLoopResult:
     messages = list(messages)
+    tool_call_turns = 0
+    reasoning_turns = 0
 
     for i in range(max_iterations):
         response = llm_client.chat(messages=messages, tools=tool_schemas)
@@ -74,7 +87,13 @@ def run_agent_loop(
                 final_message=response.content,
                 messages=messages,
                 iterations=i + 1,
+                tool_call_turns=tool_call_turns,
+                reasoning_turns=reasoning_turns,
             )
+
+        tool_call_turns += 1
+        if response.content and response.content.strip():
+            reasoning_turns += 1
 
         messages.append(
             {
@@ -93,6 +112,8 @@ def run_agent_loop(
                     final_message=result.get("reason"),
                     messages=messages,
                     iterations=i + 1,
+                    tool_call_turns=tool_call_turns,
+                    reasoning_turns=reasoning_turns,
                 )
 
     # Iteration cap reached without the model converging - hard fallback to
@@ -109,4 +130,6 @@ def run_agent_loop(
         final_message=fallback_result.get("reason"),
         messages=messages,
         iterations=max_iterations,
+        tool_call_turns=tool_call_turns,
+        reasoning_turns=reasoning_turns,
     )
