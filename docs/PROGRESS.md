@@ -1882,6 +1882,30 @@ passed (145 + 4 new tests; no existing test's expectations changed).
 
 ---
 
+## Default model switched to qwen3:8b (2026-09-16)
+
+Applied the finding from "qwen3:8b re-test" above, which had never actually
+been acted on: `qwen3:8b` ties `llama3.1:8b` on field accuracy on the same
+10 records under the same harness, but completes twice as often (8/10 vs.
+4/10) and never escalates. `LLM_MODEL`'s default was still `llama3.1:8b`
+everywhere despite this. Changed the default (env var overridable, not a
+hardcoded requirement) in the 4 places it was set: `softworker/.env.example`,
+`softworker/docker-compose.yml`, `docker-compose.local-dev.yml`,
+`.env.local-dev.example`, and `main.py`'s own `os.environ.get(..., fallback)`
+default.
+
+**Not done:** no live re-run yet with this new default in effect - the next
+full evaluation (with the `source_quote` gate and the observability counters
+above, both still unexercised against a live model) should use this model
+and report real numbers, not just carry over the two-sections-ago
+`qwen3:8b` comparison as if it already reflects today's code.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 149
+passed (no test asserted the old default string); `docker compose config`
+clean on `softworker/docker-compose.yml` and `docker-compose.local-dev.yml`.
+
+---
+
 ## Architecture Reference
 
 ```

@@ -60,7 +60,7 @@ services:
       - ODOO_DB=${ODOO_DB:-cbam}
       - ODOO_USER=${ODOO_USER:-admin}
       - ODOO_PASSWORD=${ODOO_PASSWORD}
-      - LLM_MODEL=${LLM_MODEL:-llama3.1:8b}
+      - LLM_MODEL=${LLM_MODEL:-qwen3:8b}
       - MAX_AGENT_ITERATIONS=${MAX_AGENT_ITERATIONS:-9}
       - TOOL_SCHEMA_DIR=/app/shared/tool_schemas
       - ORCHESTRATOR_API_KEY=${ORCHESTRATOR_API_KEY}

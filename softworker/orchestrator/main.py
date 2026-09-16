@@ -195,7 +195,7 @@ def _run_job(job_id: str, request: JobRequest):
             password=os.environ["ODOO_PASSWORD"],
         )
         llm_client = LLMClient(
-            model=os.environ.get("LLM_MODEL", "llama3.1:8b"),
+            model=os.environ.get("LLM_MODEL", "qwen3:8b"),
             base_url=os.environ["OLLAMA_BASE_URL"],
             api_key=os.environ["OLLAMA_API_KEY"],
         )
