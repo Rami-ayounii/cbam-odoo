@@ -1763,6 +1763,93 @@ confirming exact fixture counts.
 
 ---
 
+## Anti-hallucination gate: verbatim `source_quote` for actual-sourced emissions (2026-09-09)
+
+Direct continuation, targeting the field-accuracy investigation's own
+worst-measured spot: `direct_emissions_actual`/`indirect_emissions_actual`
+sat at 7% accuracy (`docs/evaluation-full20-2026-09-09.md`) - the only two
+fields needing genuine document-text reading rather than a deterministic
+carried-over value, so no plumbing fix could reach them.
+
+**What changed:** `write_declaration_line` now requires a `source_quote`
+whenever `data_source="actual"`, checked in two layers:
+- `tool_args.py` (`WriteDeclarationLineArgs`) rejects a missing/empty
+  `source_quote` cheaply, at validation time.
+- `tools.py`'s `ToolDispatcher` does the real check, which needs session
+  state Pydantic doesn't have: a new `self._extracted_texts` list records
+  every `document_text` `extract_field` has actually returned this job, and
+  `_write_declaration_line` verifies `source_quote` is a genuine substring
+  of one of them - not just a plausible-looking string the model wrote.
+  Fails with a `ValueError` (fed back to the model as a tool error, same
+  path as every other validation failure) naming the requirement and
+  suggesting `flag_for_human_review` if no real quote exists.
+
+`SYSTEM_PROMPT` (`softworker/orchestrator/main.py`) also gained an explicit
+Thought/Self-Reflection-before-Action instruction (reflect on the previous
+tool result, then state reasoning, both in the model's own message content
+before the next tool call) and reframes the final `write_declaration_line`
+call as a confirmation step requiring that quote. Deliberately no
+orchestrator-side enforcement of this structure - that would reintroduce
+the `if step == ...` tool-ordering anti-pattern `projecthandoff.md` rules
+out; the model can ignore the reflection instruction and nothing in
+`agent_loop.py` checks for it.
+
+**Tests:** 5 existing tests exercising actual-sourced writes updated to
+supply a real `extract_field` call plus a matching quote; 4 new tests cover
+the grounding check itself (missing quote, fabricated quote, a genuinely-
+grounded quote, and confirming default-sourced writes still need none of
+this).
+
+**Not done:** this gate has not yet been run against a live model - it's
+unit/integration-tested against the mocked Odoo/LLM boundary only, same as
+every other orchestrator change before its first live run. Whether it
+actually moves the 7% number, or just converts some of those wrong answers
+into `flag_for_human_review` escalations instead, is untested until the
+next real evaluation run.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → passes
+with the 9 test changes above (5 updated, 4 new) applied.
+
+---
+
+## Audit: `projecthandoff.md` against current code (2026-09-09)
+
+Direct follow-up in the same session - cross-checked every section of
+`projecthandoff.md` (the original spec/handoff doc, source of truth for
+scope and architecture decisions per this project's own memory) against
+what the code and this file actually say now, rather than trusting the
+handoff doc's own text. Everything else held up as still accurate: the
+tool list, the 8-10 iteration cap, the single-write-at-the-end constraint,
+the no-framework (LangChain/AutoGen/CrewAI) decision, the dependency list.
+Two things were stale:
+
+- **Section 4 (architecture diagram/description):** still described the
+  original two-sidecar Tailscale topology as current. Updated to document
+  today's real deviation (see the "Rename to hardworker/softworker" section
+  above): the softworker no longer runs its own Tailscale sidecar - the
+  admin console's key-generation page produced auth keys the real control
+  server rejected outright (root cause still not found, still worth
+  reporting to Tailscale support) - and now reaches the tailnet via the
+  physical host's own, separately-authenticated connection instead.
+  Consequence spelled out inline: `tailscale-acl-example.json`'s
+  `tag:cbam-odoo-host`/`tag:cbam-llm-host` scheme does not apply to the
+  softworker as actually deployed; reachability depends on whatever ACLs
+  apply to the host's own node. Nothing about the hardworker side changed.
+- **Section 11 (open items):** listed the Odoo version and the sync-vs-async
+  orchestrator call pattern as still undecided. Both were actually resolved
+  during implementation and just never reported back to this doc: Odoo
+  version is confirmed 17 (`"version": "17.0.1.0.0"` in
+  `softworker/addons/cbam/__manifest__.py`); the call pattern is the async
+  job + polling design the handoff doc itself recommended (`POST /jobs`
+  returns a `job_id` immediately, `GET /jobs/{job_id}/status` polls it, the
+  agent loop runs in a FastAPI `BackgroundTasks` task - plain `def` routes,
+  not `async def`, so no `pytest-asyncio` dependency was ever needed).
+
+**Verification:** no test suite changes - a documentation cross-check
+against already-tested code, not a code change.
+
+---
+
 ## Architecture Reference
 
 ```
