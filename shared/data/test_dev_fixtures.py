@@ -11,12 +11,20 @@ def test_every_fixture_is_clearly_labeled_as_fake():
     assert "not real" in DEV_SOURCE_LABEL.lower() or "NOT real" in DEV_SOURCE_LABEL
 
 
-def test_fixtures_cover_every_default_sourced_combo_in_first_20_synthetic_records():
+def test_fixtures_cover_every_default_sourced_combo_in_the_full_synthetic_dataset():
+    # Was scoped to only the first 20 records (docs/PROGRESS.md's "Default
+    # model switched to qwen2.5:14b-instruct" section found this live: 7 of
+    # the 50-record dataset's data_source="default" records need a
+    # (sector, route, country) combo outside the original 6-fixture table,
+    # so a real M9 run over records 20-49 correctly-but-unhelpfully
+    # escalates every one of them on a genuine "no emission factor found"
+    # error - not a model or extraction failure, just missing dev fixture
+    # data). Covering the full dataset removes that penalty entirely.
     import json
     from pathlib import Path
 
     index_path = Path(__file__).resolve().parent.parent / "synthetic_data" / "output" / "index.json"
-    records = json.loads(index_path.read_text(encoding="utf-8"))[:20]
+    records = json.loads(index_path.read_text(encoding="utf-8"))
     needed = {
         (r["sector"], r["production_route"], r["country"])
         for r in records

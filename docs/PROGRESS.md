@@ -2384,6 +2384,56 @@ verified by the full suite (172 passed).
 
 ---
 
+## Implementing the flagged next lever: widening the dev-fixture coverage gap (2026-09-18)
+
+Direct continuation, at the human partner's explicit request to implement
+the one concrete next lever the full-50-record benchmark section flagged
+but didn't do. Full write-up:
+`docs/evaluation-qwen25-14b-full50-fixture-fix-2026-09-18.md`.
+
+**The fix:** `shared/data/dev_fixtures.py`'s `DEV_EMISSION_FACTOR_FIXTURES`
+covered only the 6 `(sector, route, country)` combinations needed by the
+first 20 records' `data_source="default"` lines. Extended to all 13
+combinations across the full 50-record dataset - 7 new entries, same
+round-number style as the existing 6. TDD'd: the existing
+first-20-scoped coverage test was widened to the full dataset, confirmed
+RED (failed with exactly the 7 missing combos this session's live
+tracing had already identified), then GREEN after extending the table.
+Live-verified before trusting the aggregate: re-traced `SYNTH-0025`
+(previously a fast escalation on a real "no emission factor found"
+error) - now resolves a real factor and completes with a genuine write.
+
+**Result - exactly the improvement the diagnosis predicted:**
+
+| | completed | escalated | exhausted |
+|---|---|---|---|
+| records 20-49, before | 17 | 11 | 2 |
+| records 20-49, after | 24 | 4 | 2 |
+
+Escalations dropped by exactly 7 - the exact count of previously-uncovered
+`data_source="default"` records.
+
+| field | full 50, before | full 50, after |
+|---|---|---|
+| quantity_tonnes / data_source / precursor_emissions | 68% | **86%** |
+| carbon_price_paid_origin | 50% | **64%** |
+| direct_emissions_actual | 73% | **81%** |
+| indirect_emissions_actual | 68% | **76%** |
+
+Now close to the original first-20-only numbers (90%/90%/70%/90%/86%/86%)
+rather than far below them, on the honest full 50-record sample - the
+prior section's diagnosis correctly identified the dominant, fixable
+cause. The remaining gap is mechanisms 2 (source_quote gate correctly
+blocking a hallucination on a "hard" record, discarding an otherwise-valid
+write) and 3 (temperature=0.1 stochasticity) from that section, both
+architecture/model properties untouched by this fix.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 172
+passed (unchanged count - the coverage test was widened in place, not
+added; no other existing test's expectations changed).
+
+---
+
 ## Architecture Reference
 
 ```

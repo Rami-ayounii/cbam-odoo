@@ -10,12 +10,16 @@ numeric value here is an arbitrary, clearly-labeled round number, never
 written by seed_emission_factors.py and never presented as an authoritative
 CBAM figure.
 
-Covers exactly the (sector, production_route, country) combinations that
-appear with data_source == "default" among the first 20 records of
+Covers every (sector, production_route, country) combination that appears
+with data_source == "default" across the full 50-record dataset in
 shared/synthetic_data/output/index.json (generated with --seed 42), so a
-real M9 run over the first 20 records can resolve every
-lookup_default_value call, and Task 6's single live M6 job (steel/BF-BOF/EG)
-has a real emission factor to find.
+real M9 run over any subset of it can resolve every lookup_default_value
+call, and Task 6's single live M6 job (steel/BF-BOF/EG) has a real
+emission factor to find. Originally scoped to only the first 20 records -
+widened after a live run over records 20-49 showed 7 of them correctly-
+but-unhelpfully escalating on a genuine "no emission factor found" error,
+purely because this table had never been extended (docs/PROGRESS.md's
+"Default model switched to qwen2.5:14b-instruct" section).
 """
 
 import base64
@@ -46,6 +50,22 @@ DEV_EMISSION_FACTOR_FIXTURES = [
     _Fixture(4, "steel", "EAF_scrap", "UA", 0.3, 0.0, 0.10),
     _Fixture(5, "aluminium", "primary_electrolysis", "IS", 12.0, 0.0, 0.10),
     _Fixture(6, "aluminium", "primary_electrolysis", "MA", 11.5, 0.0, 0.10),
+    # Added to widen coverage from "the first 20 records" to "the full
+    # 50-record dataset" (docs/PROGRESS.md's "Default model switched to
+    # qwen2.5:14b-instruct" section) - a live run over records 20-49
+    # showed 7 data_source="default" records correctly-but-unhelpfully
+    # escalating on a genuine "no emission factor found" error, purely
+    # because this table had never been extended past the original 20.
+    # Round numbers in the same plausible range as generator.py's own
+    # EMISSION_RANGES per route, same as every fixture above - still not
+    # real CBAM data.
+    _Fixture(7, "steel", "BF-BOF", "MA", 2.05, 0.0, 0.10),
+    _Fixture(8, "steel", "EAF_scrap", "BR", 0.35, 0.0, 0.10),
+    _Fixture(9, "steel", "EAF_scrap", "MA", 0.4, 0.0, 0.10),
+    _Fixture(10, "steel", "EAF_scrap", "TR", 0.32, 0.0, 0.10),
+    _Fixture(11, "aluminium", "secondary_recycled", "CA", 0.15, 0.0, 0.10),
+    _Fixture(12, "aluminium", "secondary_recycled", "MA", 0.18, 0.0, 0.10),
+    _Fixture(13, "aluminium", "secondary_recycled", "NO", 0.20, 0.0, 0.10),
 ]
 
 DEV_GOOD_FIXTURES = [
