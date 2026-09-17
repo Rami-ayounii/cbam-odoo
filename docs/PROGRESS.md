@@ -1906,6 +1906,128 @@ clean on `softworker/docker-compose.yml` and `docker-compose.local-dev.yml`.
 
 ---
 
+## Session synthesis + next-session punch list (2026-09-17)
+
+Written so the next session (possibly on a different machine, possibly with
+no conversation context left) can pick this up cold. This is a decision
+record from a conversation that (a) committed the two doc catch-up sections
+above, (b) switched the default model to `qwen3:8b` (previous section), (c)
+did a full pre-flight code review of `agent_loop.py`/`tools.py`/
+`tool_args.py`/`llm_client.py`/`odoo_client.py`/`main.py`/`calc_engine.py`/
+`cbam_declaration_line.py` and found no bugs - the pipeline is internally
+consistent and ready for a live run, and (d) evaluated and rejected a
+"checklist/todo-list agentic planning" pattern (Manus-style `todo.md`) as
+not applicable to this project - explained in full below since it's a real
+design decision, not just a rejected idea to forget.
+
+**Why the checklist idea was rejected (don't re-litigate this without new
+evidence):** that pattern targets long-horizon tasks (dozens/hundreds of
+steps) where an agent can lose track of a large plan. This project's job is
+8-10 tool calls on one declaration line - too short for that failure mode to
+apply. More importantly, `ToolDispatcher` already implements a *stronger*
+version of the same idea (deterministic, dispatcher-tracked state -
+`known_context` injection, `_last_lookup_default_value` carryover,
+`_remembered_write_fields` - silently filled in, never requiring the model
+to read/maintain anything) - and this project's own eval history is full of
+evidence that these specific small models (`llama3.1:8b`, `qwen2.5:7b`) are
+unreliable at faithfully following structured artifacts they're handed
+(dropping args, inventing field names). A model-facing checklist would be
+reintroducing exactly the failure category five sessions of fixes already
+worked to remove. If this comes up again, the burden of proof is on showing
+a *new* failure mode this doesn't already cover, not on re-explaining the
+general pattern.
+
+**Also established: architecture-level fixes have hit diminishing returns,
+with one real exception.** Comparing fix categories against measured
+results: plumbing/architecture fixes (missing `document_id`, tool-schema
+shrinking, value carryover, temperature, the default-source constraint) took
+"plumbing-reachable" fields from 0% to 15-20% (up to 3/3 on hand-verified
+records). The same fixes, applied over the same sessions, moved
+`direct_emissions_actual`/`indirect_emissions_actual` (the two fields
+needing genuine document comprehension) only 0% to 7%. That gap is the
+signature of a model-capability ceiling, not remaining architecture debt -
+confirmed independently by M4's raw benchmark (best local model tested: 50%
+valid-tool-call rate). Further generic "optimize the architecture" passes
+are not expected to move this; the specific, still-untried levers that
+target the comprehension gap directly are listed below.
+
+### Leave as-is (validated - do not modify without new evidence)
+- The single-agent, continuous-context loop (`agent_loop.py`) - no
+  multi-agent framework, no tool-ordering logic.
+- `ToolDispatcher`'s deterministic state (`known_context` injection,
+  `_last_lookup_default_value` carryover, `_remembered_write_fields`).
+- The `source_quote` anti-hallucination gate's *design* (cheap Pydantic
+  check + real substring verification against `_extracted_texts`) - sound,
+  just not live-tested yet (see punch list).
+- `calc_engine.py` - pure Python, zero LLM involvement in the actual number.
+- The Odoo model layer (`certificates_status`, route-specific benchmark
+  lookup, sector-consistency constraint) - reviewed, correct.
+- Iteration cap (8-10), single-write guard, escalation-on-cap-exhaustion.
+- The Docker/Tailscale layered *design* (nginx gate, internal-only Postgres,
+  sidecar pattern) - the design is sound; what's missing is exercising it as
+  a real two-machine pair (see punch list).
+
+### Change (modify what exists)
+1. `SYSTEM_PROMPT` (`softworker/orchestrator/main.py`): add one worked
+   few-shot extraction example. Every prompt fix to date has been "remove
+   burden," none has been "show the model what correct extraction looks
+   like." Targets the actual remaining bottleneck directly.
+2. `check_consistency` (`tools.py._check_consistency`): currently validates
+   a dict the model hand-constructs with **zero connection** to
+   `self._extracted_texts` - a model can report fabricated numbers and get
+   `"issues": []`. Cross-referencing it against real extracted text (even
+   just advisory, before the hard `write_declaration_line` gate) would
+   surface problems an iteration earlier.
+3. Process habit: PROGRESS.md entries must land in the *same* commit as
+   their code, not a catch-up commit later (this session had to fix two
+   sessions' worth of doc lag - see the two commits before "Default model
+   switched to qwen3:8b" above).
+
+### Add (genuinely missing, worth building)
+1. **Highest-value, untried:** hybrid structured/regex pre-parse for
+   templated synthetic-document fields (`cn_code`, `quantity_tonnes`,
+   `installation_name`, etc. - M1's generator produces fixed templates, not
+   free prose). Parse deterministically first, fall back to the LLM only
+   when parsing fails. The one lever that doesn't depend on the model
+   getting better at reading.
+2. Wire `tool_call_turns`/`reasoning_turns` (added this session,
+   `agent_loop.py`/`main.py`) into `run_evaluation.py`'s report generator -
+   currently only visible via the live job-status API, not in the
+   `docs/evaluation*.md` reports that actually get cited as the project's
+   numbers.
+3. Real two-machine Tailscale mesh verification - softworker has run alone
+   on real hardware (no sidecar, using the host's own tailnet identity);
+   hardworker has never joined it in that configuration. Still open.
+4. The full live evaluation itself: `qwen3:8b` (new default) +
+   `source_quote` gate + the observability counters, all still unexercised
+   together against a live model. This is what turns every item above from
+   "should help" into "measured, did/didn't help." **This is the actual
+   next action once back at the hardworker.**
+5. (Lower priority, optional) `qwen2.5:14b-instruct` against the fixed
+   harness - still untested since M4, `qwen3:8b` already looks solid enough
+   that this may not be worth the time.
+
+### Eliminate (drop or stop doing)
+1. The checklist/todo-list planning idea - see rejection rationale above.
+   Don't build it without new evidence of a failure mode it would actually
+   fix.
+2. Further generic "optimize the architecture" passes as a default
+   activity - that vein is mined out (five sessions: real bug every time,
+   then real bugs zero times). The remaining gap is read-accuracy,
+   addressed by Add #1, not by more plumbing review.
+3. (Weak, reconsider don't necessarily cut) `request_missing_data` -
+   a no-op acknowledgment tool with no observed effect anywhere in the eval
+   history. Candidate to drop only if deliberately shrinking the model's
+   decision surface further; not a strong recommendation on its own.
+
+**First concrete step next session:** Add #4 (the live evaluation run) is
+the unlock everything else depends on for real evidence - Change #1/#2 and
+Add #1/#2 are all cheap enough to implement locally first (no hardworker
+needed) so they're ready to be included in that same run, rather than
+doing them one experiment at a time.
+
+---
+
 ## Architecture Reference
 
 ```
