@@ -45,8 +45,8 @@ class _CapturingOpenAIConstructor:
         _CapturingOpenAIConstructor.last_kwargs = kwargs
 
 
-def _make_completion(content=None, tool_calls=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
+def _make_completion(content=None, tool_calls=None, reasoning=None):
+    message = SimpleNamespace(content=content, tool_calls=tool_calls, reasoning=reasoning)
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
@@ -78,6 +78,35 @@ def test_chat_returns_content_when_no_tool_calls():
 
     assert response.content == "hello"
     assert response.tool_calls == []
+
+
+def test_chat_captures_reasoning_from_a_thinking_model():
+    # Real bug found live (docs/PROGRESS.md's qwen2.5:14b-instruct-adjacent
+    # qwen3:8b full-20 re-run): Ollama's OpenAI-compatible endpoint returns
+    # a "thinking" model's (e.g. qwen3:8b) chain-of-thought in a
+    # message.reasoning field, separate from message.content - confirmed
+    # via a raw /v1/chat/completions call and the openai SDK's own
+    # model_extra passthrough. chat() used to read only message.content,
+    # so agent_loop.py's reasoning_turns counter silently undercounted to
+    # zero for every thinking-model run despite the model reasoning on
+    # every turn.
+    completion = _make_completion(content="done", reasoning="thinking about it...")
+    fake_client = FakeOpenAIClient(completion)
+    llm_client = LLMClient(model="qwen3:8b", client=fake_client)
+
+    response = llm_client.chat(messages=[{"role": "user", "content": "hi"}], tools=[])
+
+    assert response.reasoning == "thinking about it..."
+
+
+def test_chat_reasoning_defaults_to_none_when_absent():
+    completion = _make_completion(content="hello")
+    fake_client = FakeOpenAIClient(completion)
+    llm_client = LLMClient(model="llama3.1:8b", client=fake_client)
+
+    response = llm_client.chat(messages=[{"role": "user", "content": "hi"}], tools=[])
+
+    assert response.reasoning is None
 
 
 def test_chat_parses_tool_calls():

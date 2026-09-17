@@ -92,7 +92,13 @@ def run_agent_loop(
             )
 
         tool_call_turns += 1
-        if response.content and response.content.strip():
+        # A "thinking" model (e.g. qwen3:8b) may put its reasoning in a
+        # separate response.reasoning field rather than response.content -
+        # see llm_client.py's LLMResponse.reasoning. Either counts.
+        stated_reasoning = (response.content and response.content.strip()) or (
+            getattr(response, "reasoning", None) and response.reasoning.strip()
+        )
+        if stated_reasoning:
             reasoning_turns += 1
 
         messages.append(

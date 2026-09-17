@@ -68,6 +68,8 @@ class EvaluationResult:
     iterations: int
     field_scores: dict = field(default_factory=dict)
     error: Optional[str] = None
+    tool_call_turns: int = 0
+    reasoning_turns: int = 0
 
 
 def run_evaluation_on_record(
@@ -178,6 +180,8 @@ def run_evaluation_on_record(
         status=result.status,
         iterations=result.iterations,
         field_scores=field_scores,
+        tool_call_turns=result.tool_call_turns,
+        reasoning_turns=result.reasoning_turns,
     )
 
 
@@ -207,6 +211,8 @@ def build_report_markdown(results: List[EvaluationResult]) -> str:
     iteration_counts: dict = {}
     all_field_scores = []
     errors = []
+    total_tool_call_turns = 0
+    total_reasoning_turns = 0
 
     for r in results:
         status_counts[r.status] = status_counts.get(r.status, 0) + 1
@@ -215,6 +221,8 @@ def build_report_markdown(results: List[EvaluationResult]) -> str:
             all_field_scores.append(r.field_scores)
         if r.error:
             errors.append((r.record_id, r.error))
+        total_tool_call_turns += r.tool_call_turns
+        total_reasoning_turns += r.reasoning_turns
 
     aggregated = aggregate_field_scores(all_field_scores)
 
@@ -232,6 +240,10 @@ def build_report_markdown(results: List[EvaluationResult]) -> str:
         lines.append(
             f"- {field_name}: {stats['correct']}/{stats['total']} ({stats['accuracy']:.0%})"
         )
+    lines.append("")
+    lines.append("## Observability")
+    lines.append(f"- tool-call turns: {total_tool_call_turns}")
+    lines.append(f"- reasoning turns: {total_reasoning_turns}/{total_tool_call_turns}")
     if errors:
         lines.append("")
         lines.append("## Errors")

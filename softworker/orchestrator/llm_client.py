@@ -37,6 +37,11 @@ class ToolCall:
 class LLMResponse:
     content: Optional[str]
     tool_calls: List[ToolCall]
+    # Ollama's OpenAI-compatible endpoint returns a "thinking" model's
+    # (e.g. qwen3:8b) chain-of-thought here, separate from content - not
+    # part of the official OpenAI schema, so the openai SDK only exposes it
+    # via getattr/model_extra, never a typed attribute every model has.
+    reasoning: Optional[str] = None
 
 
 class LLMClient:
@@ -105,7 +110,11 @@ class LLMClient:
             )
             for call in (message.tool_calls or [])
         ]
-        return LLMResponse(content=message.content, tool_calls=tool_calls)
+        return LLMResponse(
+            content=message.content,
+            tool_calls=tool_calls,
+            reasoning=getattr(message, "reasoning", None),
+        )
 
 
 def _parse_tool_call_arguments(raw_arguments) -> dict:

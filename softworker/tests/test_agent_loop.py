@@ -9,9 +9,10 @@ class FakeToolCall:
 
 
 class FakeLLMResponse:
-    def __init__(self, content=None, tool_calls=None):
+    def __init__(self, content=None, tool_calls=None, reasoning=None):
         self.content = content
         self.tool_calls = tool_calls or []
+        self.reasoning = reasoning
 
 
 class FakeLLMClient:
@@ -229,6 +230,36 @@ def test_result_counts_tool_call_turns_and_which_ones_stated_reasoning_first():
     assert result.status == "completed"
     assert result.iterations == 3
     assert result.tool_call_turns == 2
+    assert result.reasoning_turns == 1
+
+
+def test_reasoning_turns_counts_a_thinking_models_separate_reasoning_field():
+    # Real bug found live (docs/PROGRESS.md's qwen3:8b full-20 re-run):
+    # Ollama returns a "thinking" model's (e.g. qwen3:8b) chain-of-thought
+    # in a reasoning field separate from content, which llm_client.py used
+    # to drop entirely - so reasoning_turns undercounted to zero for a
+    # thinking model that reasoned on every single turn. A turn with empty
+    # content but non-empty reasoning must still count.
+    llm_client = FakeLLMClient(
+        [
+            FakeLLMResponse(
+                content=None,
+                reasoning="The quantity is missing, I should extract it first.",
+                tool_calls=[FakeToolCall("c1", "extract_field", {"field_name": "quantity_tonnes"})],
+            ),
+            FakeLLMResponse(content="done"),
+        ]
+    )
+
+    result = run_agent_loop(
+        messages=[],
+        llm_client=llm_client,
+        tool_schemas=[],
+        execute_tool=_recording_execute_tool([]),
+        max_iterations=10,
+    )
+
+    assert result.tool_call_turns == 1
     assert result.reasoning_turns == 1
 
 

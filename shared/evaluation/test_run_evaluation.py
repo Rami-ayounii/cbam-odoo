@@ -164,3 +164,64 @@ def test_build_report_markdown_includes_status_and_field_accuracy():
     assert "completed: 1" in report
     assert "escalated: 1" in report
     assert "quantity_tonnes: 1/2" in report
+
+
+def test_run_evaluation_on_record_captures_observability_counters():
+    # Regression test for the punch list's "Add #2" item (docs/PROGRESS.md,
+    # "Session synthesis + next-session punch list"): agent_loop.py has
+    # tracked tool_call_turns/reasoning_turns since the "Observability"
+    # section, but this harness discarded them - so the eval report could
+    # never show whether the ReAct-style reasoning prompt (the
+    # "Anti-hallucination gate" section) actually gets used by a real model.
+    records = load_synthetic_records(DATA_DIR, limit=1)
+    record = records[0]
+    gt = record["ground_truth"]
+
+    llm_client = ScriptedLLMClient(
+        [
+            FakeLLMResponse(
+                content="Checking the document first.",
+                tool_calls=[
+                    FakeToolCall(
+                        "c1",
+                        "calculate_emissions",
+                        {"quantity_tonnes": gt["quantity_tonnes"], "direct_ef": 1.9},
+                    )
+                ],
+            ),
+            FakeLLMResponse(content="done"),
+        ]
+    )
+
+    from datetime import date
+
+    result = run_evaluation_on_record(
+        record,
+        llm_client,
+        tool_schemas=[],
+        declaration_date=date(2026, 1, 1),
+        max_iterations=9,
+    )
+
+    assert result.tool_call_turns == 1
+    assert result.reasoning_turns == 1
+
+
+def test_build_report_markdown_includes_observability_summary():
+    results = [
+        EvaluationResult(
+            record_id="A", status="completed", iterations=2,
+            field_scores={"quantity_tonnes": True},
+            tool_call_turns=2, reasoning_turns=2,
+        ),
+        EvaluationResult(
+            record_id="B", status="escalated", iterations=5,
+            field_scores={"quantity_tonnes": False},
+            tool_call_turns=4, reasoning_turns=0,
+        ),
+    ]
+
+    report = build_report_markdown(results)
+
+    assert "## Observability" in report
+    assert "reasoning turns: 2/6" in report

@@ -2120,6 +2120,70 @@ comparison, not a code change.
 
 ---
 
+## The punch list's top-priority item: qwen3:8b + source_quote gate + observability counters, all live for the first time (2026-09-17)
+
+Direct continuation, doing the punch list's explicit "Add #4... the actual
+next action" item (see "Session synthesis + next-session punch list"
+above): `qwen3:8b` (the new default), the `source_quote` anti-hallucination
+gate, and the `tool_call_turns`/`reasoning_turns` observability counters
+had never been exercised together against a live model. Full write-up:
+`docs/evaluation-qwen3-8b-full20-2026-09-17.md`.
+
+**Prep before the run:** wired the observability counters into the
+harness's own report generator (punch list's "Add #2", bundled in first
+since it was cheap and needed for this run to say anything about
+reasoning behavior) - `EvaluationResult` and `build_report_markdown` in
+`shared/evaluation/run_evaluation.py` now carry/report
+`tool_call_turns`/`reasoning_turns`, TDD'd (2 new tests, confirmed RED
+before the fields existed).
+
+**Full 20-record result:** 16/20 completed, 0/20 escalated, 4/20
+exhausted. Field accuracy 25-35% on the plumbing-reachable fields, 7% on
+`direct_emissions_actual`/`indirect_emissions_actual` - on the shared
+first-10-record subset, statistically consistent with the earlier
+`qwen3:8b` measurement (`docs/evaluation-qwen3-8b-2026-09-09.md`), not a
+regression, despite an initial read suggesting otherwise.
+
+**A real bug found and fixed: `reasoning_turns` was silently broken for
+thinking models.** The raw run reported `reasoning_turns: 0` across all 74
+tool-call turns - checked rather than trusted, since it would mean the
+ReAct-style reasoning prompt (see "Anti-hallucination gate" section) was
+being completely ignored. Root cause, confirmed with a raw
+`/v1/chat/completions` call: `qwen3:8b` is a hybrid "thinking" model, and
+Ollama returns its chain-of-thought in a separate `message.reasoning`
+field, not `message.content` - `llm_client.py` only ever read `content`.
+Fixed: `LLMResponse` gained a `reasoning` field
+(`softworker/orchestrator/llm_client.py`); `agent_loop.py`'s
+reasoning-turn check now counts either field. 3 more regression tests
+(TDD'd, RED confirmed first). Live-verified after the fix by re-tracing 4
+records: `reasoning_turns` now equals `tool_call_turns` exactly in all 4 -
+the model was reasoning on effectively every turn the whole time; the
+harness just couldn't see it.
+
+**Live-traced failure modes:** the pre-existing "silent stop right after a
+successful extraction, before ever calling `write_declaration_line`"
+pattern persists (`SYNTH-0003`). One trace also showed a new, specific
+confusion: the model attempted `extract_field(field_name="source_quote")`
+(an invalid enum value - `source_quote` is a `write_declaration_line`
+argument, not an extractable field), got a validation error, then
+re-extracted already-known fields for several wasted iterations before
+finally writing correctly right at the iteration cap (scored `exhausted`
+despite a fully correct write). Possible `SYSTEM_PROMPT` wording issue
+worth a future look - not confirmed as a systemic problem from one trace.
+
+**Conclusion: this sharpens, rather than changes, this session's earlier
+finding.** `qwen2.5:14b-instruct`'s full-20 result
+(57-70% across every field) remains far ahead of `qwen3:8b`'s (7-35%) on
+the identical harness, same day, same fixes. The punch list's top-priority
+item is done; the concrete open question it produced (documented, not
+acted on) is whether to switch the default model again.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 154
+passed (149 + 5 new regression tests across both fixes; no existing test's
+expectations changed).
+
+---
+
 ## Architecture Reference
 
 ```
