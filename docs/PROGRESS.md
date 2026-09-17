@@ -2293,6 +2293,97 @@ passed (154 + 18 new: 14 in `test_field_extraction.py`, 4 in
 
 ---
 
+## Default model switched to qwen2.5:14b-instruct; the honest full-50-record benchmark (2026-09-18)
+
+Direct continuation, at the human partner's explicit request: switch the
+default model to match today's evidence, then validate at the full
+50-record scale rather than trusting the first-20 subset every prior
+comparison this session used. Full write-up:
+`docs/evaluation-qwen25-14b-full50-2026-09-18.md`.
+
+**Default model switched:** `LLM_MODEL`'s default changed from `qwen3:8b`
+to `qwen2.5:14b-instruct` in all 5 places it's set
+(`softworker/.env.example`, `softworker/docker-compose.yml`,
+`docker-compose.local-dev.yml`, `.env.local-dev.example`, `main.py`'s
+`os.environ.get` fallback) - mirroring exactly how the `qwen3:8b` switch
+was done in the "Default model switched to qwen3:8b" section. Full suite
+still 172 passed (no test asserted the old default string).
+
+**Full 50-record result - genuinely lower than the first-20 subset, for
+real, traced reasons, not an unexplained regression:**
+
+| | completed | escalated | exhausted |
+|---|---|---|---|
+| 50 records | 34 | 14 | 2 |
+
+| field | records 0-19 | records 20-49 | full 50 |
+|---|---|---|---|
+| quantity_tonnes / data_source / precursor_emissions | 90% | 53% | 68% |
+| carbon_price_paid_origin | 70% | 37% | 50% |
+| direct_emissions_actual | 86% | 65% | 73% |
+| indirect_emissions_actual | 86% | 57% | 68% |
+
+**Three distinct, live-verified mechanisms explain the drop - not one
+vague "model got worse":**
+
+1. **A test-harness fixture gap, not a model failure - 7 of 11
+   escalations in the 20-49 batch, deterministically.**
+   `shared/data/dev_fixtures.py` documents itself as covering only the
+   `(sector, route, country)` combinations needed by the first 20
+   records' `data_source="default"` lines (6 combinations). All 7
+   `default`-sourced records in 20-49 need a combination outside that
+   table. Traced `SYNTH-0025` live: `lookup_default_value` correctly
+   returns a real "not found" error, and the model correctly escalates -
+   textbook-correct behavior when the reference data genuinely doesn't
+   exist, not an extraction or reasoning failure.
+2. **A real architectural tradeoff: the source_quote gate correctly
+   blocks a hallucination, but the single-write design then discards
+   data that WAS validly extracted.** Traced `SYNTH-0038` live (`hard`
+   difficulty, `direct_emissions_actual` genuinely absent from the
+   document, `indirect_emissions_actual=0.107` genuinely present): the
+   model correctly extracted the real indirect value, then fabricated a
+   `direct_emissions_actual=0.05` and an invented "quote" for the
+   genuinely-missing field. The `source_quote` grounding check correctly
+   rejected the fabrication three times before the model escalated - the
+   gate worked exactly as designed. But `write_declaration_line`'s
+   single-call constraint (`projecthandoff.md`'s "single write at the
+   end") means the whole record scores 0/6, discarding the correctly-
+   extracted indirect value along with the blocked fabrication. A real
+   design tradeoff, not a bug - flagged, not silently fixed.
+3. **Plain run-to-run stochasticity.** `SYNTH-0034` and `SYNTH-0048`
+   (both easy/medium, no missing fields, no fixture gap) scored 0/6 in
+   the original batch run; live re-tracing both immediately after, same
+   code, produced a fully correct 6/6 write both times.
+   `LLMClient`'s temperature=0.1 is deliberately non-zero (see its own
+   comment), so identical inputs do not guarantee identical tool-call
+   sequences - consistent with M4's own finding that this model class
+   doesn't converge every single time, just manifesting differently on
+   this particular sample.
+
+**What this does and doesn't change:** the full 50-record numbers above
+are now the honest current benchmark, not the more flattering first-20
+subset (which happened to avoid every fixture-gap record by chance of
+the dataset's seeding). It does **not** walk back
+`qwen2.5:14b-instruct`'s status as the best model tested - mechanisms 1
+and 2 are harness/architecture properties that would suppress any
+model's measured score equally, and mechanism 3 is a known property of
+this model class, not something this session's changes introduced.
+
+**Concrete next lever, not yet done:** extending
+`DEV_EMISSION_FACTOR_FIXTURES` to cover every `data_source="default"`
+combination actually present in the 50-record dataset (not just the
+first 20) would remove mechanism 1's 7-record penalty entirely - it's
+already-labeled fake dev data, so widening its coverage completes a known
+gap rather than making the benchmark easier. Flagged as the highest-
+leverage remaining step, not implemented in this pass since it wasn't
+asked for.
+
+**Verification:** no test suite changes for the evaluation run itself - a
+real live-infra benchmark; the model-default switch is separately
+verified by the full suite (172 passed).
+
+---
+
 ## Architecture Reference
 
 ```
