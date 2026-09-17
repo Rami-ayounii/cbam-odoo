@@ -8,7 +8,7 @@ error, instead of a raw TypeError crashing the dispatcher.
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 # Hard backstops on the one tool call that actually persists data, shared
 # with tools.py's check_consistency (which uses the same bound, just as an
@@ -81,6 +81,26 @@ class WriteDeclarationLineArgs(BaseModel):
     carbon_price_paid_origin: float = 0.0
     precursor_emissions: float = 0.0
     source_quote: Optional[str] = None
+
+    @field_validator(
+        "direct_emissions_actual",
+        "indirect_emissions_actual",
+        "carbon_price_paid_origin",
+        "precursor_emissions",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_explicit_null_to_default(cls, value):
+        # A model that has only extracted one of several optional emissions
+        # fields sometimes passes an explicit null for the one it doesn't
+        # have yet, rather than omitting the key entirely (a real behavior
+        # observed live, not hypothetical - docs/PROGRESS.md's hybrid-
+        # extraction section). Omitting the key already falls back to the
+        # field's own 0.0 default; an explicit null should behave
+        # identically instead of hard-failing validation and wasting a
+        # retry the remembered-write-fields carryover would have resolved
+        # anyway.
+        return 0.0 if value is None else value
 
     @model_validator(mode="after")
     def _source_quote_required_for_actual_source(self):

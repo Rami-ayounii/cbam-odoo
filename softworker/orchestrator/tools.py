@@ -16,6 +16,7 @@ from calc_engine import (
     calculate_embedded_emissions,
     lookup_emission_factor,
 )
+from field_extraction import regex_extract_field
 from tool_args import PLAUSIBLE_EF_MAX, TOOL_ARG_MODELS
 
 # Prepended to every extract_field result so the model is told, right next
@@ -181,11 +182,24 @@ class ToolDispatcher:
 
         args = dict(args)
         for field_name in self._REMEMBERED_WRITE_FIELD_NAMES:
-            if field_name in args:
+            # An explicit null must not overwrite an already-remembered good
+            # value (e.g. from extract_field's own deterministic parse,
+            # populated below in _extract_field) - see the "fills a null
+            # field" regression test: a real live trace showed the model
+            # explicitly passing null for a field extract_field had just
+            # correctly parsed, in the very same write_declaration_line call
+            # this loop runs for.
+            if field_name in args and args[field_name] is not None:
                 self._remembered_write_fields[field_name] = args[field_name]
         if name == "write_declaration_line":
             for field_name in self._REMEMBERED_WRITE_FIELD_NAMES:
-                if field_name not in args and field_name in self._remembered_write_fields:
+                # Treat an explicit null the same as an absent key: fill it
+                # from memory. Never overrides a real, non-null value the
+                # model deliberately restates here itself.
+                if (
+                    args.get(field_name) is None
+                    and field_name in self._remembered_write_fields
+                ):
                     args[field_name] = self._remembered_write_fields[field_name]
 
         for arg_name, context_key in self._KNOWN_CONTEXT_INJECTIONS.get(name, {}).items():
@@ -227,12 +241,62 @@ class ToolDispatcher:
             document_id, expected_declaration_line_id=self.declaration_line_id
         )
         self._extracted_texts.append(text)
-        return {
+        result = {
             "document_id": document_id,
             "field_name": field_name,
             "note": UNTRUSTED_DOCUMENT_NOTE,
             "document_text": text,
         }
+        # Deterministic pre-parse (punch list "Add #1"): when the document
+        # matches one of the known fixed templates, hand the model an
+        # already-parsed value instead of asking it to read for one - the
+        # model's own reading/recall reliability has been this project's
+        # persistent ceiling on exactly these fields. document_text is kept
+        # in the result regardless, both for fields with no pattern and so
+        # the model can still verify/quote from it (the source_quote gate
+        # needs a real substring of document_text, not of "source_quote"
+        # below).
+        #
+        # The parsed value is keyed by the field's OWN real name (e.g.
+        # "direct_emissions_actual": 0.105), not a generic "parsed_value" -
+        # a real live trace found the model mimicking a generic
+        # {"field_name": ..., "value": ...} shape straight into
+        # write_declaration_line's call instead of using that tool's own
+        # named arguments; since Pydantic silently drops unrecognized extra
+        # keys, that "succeeded" with every real field left at its 0.0
+        # default. Keying by the real argument name means copying this
+        # result's shape into write_declaration_line produces a *correct*
+        # call instead of a subtly wrong one.
+        parsed = regex_extract_field(text, field_name)
+        if parsed is not None:
+            result[field_name] = parsed["value"]
+            result["source_quote"] = parsed["matched_line"]
+            if field_name in self._REMEMBERED_WRITE_FIELD_NAMES:
+                # As trustworthy as _last_lookup_default_value below - a
+                # deterministic dispatcher-side fact, not the model's own
+                # possibly-wrong restatement - so write_declaration_line
+                # can recover it even if the model explicitly (and
+                # incorrectly) passes null for this field in its own write
+                # call. See the "fills a null field" regression test.
+                self._remembered_write_fields[field_name] = parsed["value"]
+            if parsed.get("inferred_default"):
+                result["note"] += (
+                    f" {field_name} above is an inferred default (no "
+                    "matching line found in the document), not a literal "
+                    "quote - do not use source_quote as a real quote in "
+                    "that case, since it is None."
+                )
+            else:
+                result["note"] += (
+                    f" {field_name} above was reliably parsed from this "
+                    "document - use it directly instead of reading "
+                    "document_text yourself. If this value goes into "
+                    "write_declaration_line, pass it under the argument "
+                    f"name '{field_name}' (matching the key above), and "
+                    "use source_quote above as write_declaration_line's "
+                    "source_quote argument."
+                )
+        return result
 
     def _lookup_default_value(self, sector, route, country):
         session = self.odoo_client.get_emission_factor_session()

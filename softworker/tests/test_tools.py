@@ -121,6 +121,46 @@ def test_extract_field_rejects_document_outside_job_scope():
         )
 
 
+def test_extract_field_includes_a_deterministic_parsed_value_keyed_by_the_real_field_name():
+    # Punch list "Add #1": M1's generator produces fixed templates, so a
+    # templated numeric field doesn't need the model to read it - see
+    # field_extraction.py. document_text is still returned too (for
+    # fallback / consistency), this only adds a shortcut on top.
+    #
+    # Keyed by the field's own real name (not a generic "parsed_value") -
+    # a real live trace found the model mimicking a generic
+    # {"field_name": ..., "value": ...} shape straight into
+    # write_declaration_line's call instead of that tool's own named
+    # arguments, silently losing the value (Pydantic drops unknown extra
+    # keys). Keying by the real name means copying this shape produces a
+    # correct call instead of a wrong one.
+    odoo_client = FakeOdooClient(
+        document_text="Direct embedded emissions : 0.105 tCO2e/t\n"
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+
+    result = dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    assert result["direct_emissions_actual"] == 0.105
+    assert "0.105" in result["source_quote"]
+    assert "Direct embedded emissions" in result["document_text"]
+
+
+def test_extract_field_has_no_deterministic_value_when_no_pattern_matches():
+    odoo_client = FakeOdooClient(
+        document_text="This document does not follow any known template."
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+
+    result = dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    assert "direct_emissions_actual" not in result
+
+
 def test_lookup_default_value_returns_emission_factor_fields():
     odoo_client = FakeOdooClient(emission_factors=[_make_factor(direct_ef=1.9, id=7)])
     dispatcher = _make_dispatcher(odoo_client)
@@ -414,6 +454,43 @@ def test_write_declaration_line_remembers_actual_values_stated_in_an_earlier_wro
     assert odoo_client.written["indirect_emissions_actual"] == pytest.approx(0.079)
     assert odoo_client.written["carbon_price_paid_origin"] == pytest.approx(12.04)
     assert "source_quote" not in odoo_client.written
+
+
+def test_write_declaration_line_fills_a_null_field_from_extract_fields_own_parsed_value():
+    # Real bug found live (docs/PROGRESS.md's hybrid-extraction section):
+    # extract_field correctly parsed direct_emissions_actual=0.117 (via
+    # field_extraction.py's regex pre-parse) and handed it to the model,
+    # which then explicitly passed direct_emissions_actual=null in its
+    # write_declaration_line call anyway. Before this fix, an explicit null
+    # coerced straight to 0.0 (a separate fix for a different problem -
+    # see the null-coercion test below) with nothing checking whether a
+    # better, already-known value existed - silently discarding a value
+    # the dispatcher itself had already reliably parsed.
+    odoo_client = FakeOdooClient(
+        document_text="Direct embedded emissions : 0.117 tCO2e/t",
+        write_result_id=16,
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "actual",
+            "direct_emissions_actual": None,
+            "indirect_emissions_actual": 0.4,
+            "source_quote": "Direct embedded emissions : 0.117 tCO2e/t",
+        },
+    )
+
+    assert result["declaration_line_id"] == 16
+    assert odoo_client.written["direct_emissions_actual"] == pytest.approx(0.117)
 
 
 def test_write_declaration_line_prefers_its_own_explicit_value_over_a_remembered_one():
@@ -768,6 +845,44 @@ def test_write_declaration_line_accepts_a_source_quote_actually_extracted():
     assert result["declaration_line_id"] == 13
     assert odoo_client.written["direct_emissions_actual"] == pytest.approx(1.9)
     assert "source_quote" not in odoo_client.written
+
+
+def test_write_declaration_line_coerces_an_explicit_null_to_the_fields_default():
+    # Real behavior found live (docs/PROGRESS.md's hybrid-extraction
+    # section): a model that has only extracted one of two emissions
+    # fields sometimes explicitly passes null for the one it doesn't have
+    # yet, rather than omitting the key. direct_emissions_actual/
+    # indirect_emissions_actual/carbon_price_paid_origin/
+    # precursor_emissions previously typed as a bare `float` (required,
+    # no None allowed), so an explicit null hard-failed validation instead
+    # of falling back to the field's own 0.0 default the way omitting the
+    # key already does - wasting a retry for no benefit (the remembered-
+    # write-fields carryover still fills the missing one in either way).
+    odoo_client = FakeOdooClient(
+        document_text="Direct embedded emissions : 0.59 tCO2e/t",
+        write_result_id=15,
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 100.0,
+            "data_source": "actual",
+            "direct_emissions_actual": 0.59,
+            "indirect_emissions_actual": None,
+            "source_quote": "Direct embedded emissions : 0.59 tCO2e/t",
+        },
+    )
+
+    assert result["declaration_line_id"] == 15
+    assert odoo_client.written["indirect_emissions_actual"] == 0.0
 
 
 def test_write_declaration_line_does_not_require_source_quote_for_default_source():

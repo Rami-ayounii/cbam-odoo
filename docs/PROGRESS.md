@@ -2184,6 +2184,115 @@ expectations changed).
 
 ---
 
+## Punch list "Add #1": hybrid regex/LLM extraction - the strongest result yet, after fixing two self-inflicted regressions (2026-09-17)
+
+Direct continuation, at the human partner's explicit request to pursue
+the punch list's "highest-value, untried" item: a deterministic
+regex/structured pre-parse for `extract_field`, since M1's generator
+produces fixed document templates, not free prose. Full write-up:
+`docs/evaluation-qwen25-14b-hybrid-extraction-2026-09-17.md`.
+
+**Built:** `softworker/orchestrator/field_extraction.py` -
+`regex_extract_field(document_text, field_name)`, TDD'd against
+hand-written fixtures first, then validated against the real generated
+50-record dataset (`shared/synthetic_data/output/`) before any live model
+testing - this caught 2 real bugs the hand-written fixtures missed: (1)
+"Direct embedded emissions" is a literal substring of "Indirect embedded
+emissions", so a pattern without a word boundary matched the wrong line
+whenever `direct_emissions_actual` was genuinely absent; (2) the
+"carbon price absent → infer 0.0" rule wrongly fired for
+`customs_declaration` documents, which never state carbon price
+regardless of the real (sometimes nonzero) value - fixed by requiring an
+emissions-declaration section marker to be present first. After both
+fixes: 100% correct coverage with zero wrong answers on
+`direct_emissions_actual`/`indirect_emissions_actual`/`quantity_tonnes`
+across all 50 real records; `carbon_price_paid_origin` safely declines to
+guess (no value, not a wrong one) for the 8/50 records where it's
+structurally unknowable from the document type.
+
+**Wired into `tools.py`'s `_extract_field`:** a successful parse adds the
+value to the tool result, `document_text` always still included too
+(fallback for non-matching fields/documents unchanged from before).
+
+**Two real regressions found live, root-caused, and fixed before trusting
+any result - the honest story, not the polished one:**
+
+1. **Shape mimicry.** First live run: `direct_emissions_actual`/
+   `indirect_emissions_actual` accuracy dropped (57%→21%/14%) instead of
+   improving. Traced `SYNTH-0003`: the initial design returned a generic
+   `{"field_name": ..., "parsed_value": ...}` shape, and the model
+   mimicked that exact shape into `write_declaration_line`'s call instead
+   of using that tool's own named arguments - Pydantic silently drops
+   unrecognized extra keys, so the call "succeeded" with every real field
+   at its 0.0 default. Fixed by keying the result by the field's own real
+   argument name (e.g. `"direct_emissions_actual": 0.105`) instead of a
+   generic wrapper, so mimicking the shape now produces a *correct* call.
+2. **A null-coercion fix that hid a worse bug.** While fixing #1, the
+   model was observed passing explicit `null` for an unextracted field
+   instead of omitting the key - `WriteDeclarationLineArgs` typed these as
+   required `float`, so null hard-failed validation, wasting a retry.
+   First attempt (coerce null→0.0 in a `field_validator`) *introduced* a
+   worse bug: a full 20-record re-run showed `direct_emissions_actual`
+   drop to 29% even with `indirect_emissions_actual` extracted correctly
+   alongside it in the same job - the model would pass a real,
+   just-extracted value for one field and an explicit null for the other,
+   and the coercion silently zeroed it instead of recovering the real
+   value, because `extract_field`'s parses were never fed into the
+   dispatcher's existing remembered-value mechanism (`_last_lookup_default_value`'s
+   pattern, already used for `lookup_default_value`). Real fix:
+   `_extract_field` now remembers its own successful parses the same way;
+   `write_declaration_line`'s remembered-field fallback now treats an
+   explicit null the same as an absent key (never overriding a real,
+   non-null value the model deliberately restates - only filling a gap).
+   Verified live: `SYNTH-0006` went from a wrong 0.0 to a correct 0.117,
+   with the model still passing null exactly as before - the dispatcher
+   now recovers correctly rather than requiring the model to behave
+   differently.
+
+Both fixes TDD'd with regression tests reproducing the exact live failure
+before the fix.
+
+**Final result (`qwen2.5:14b-instruct`, full 20 records, all fixes in
+effect):**
+
+| | completed | escalated | exhausted |
+|---|---|---|---|
+| 20 records | 17 | 3 | 0 |
+
+| field | before hybrid extraction | after (all fixes) |
+|---|---|---|
+| quantity_tonnes | 70% | **90%** |
+| data_source | 70% | **90%** |
+| carbon_price_paid_origin | 60% | **70%** |
+| precursor_emissions | 70% | **90%** |
+| direct_emissions_actual | 57% | **86%** |
+| indirect_emissions_actual | 57% | **86%** |
+
+**The strongest result this project has measured, on any model, any fix,
+at full 20-record scale.** `direct_emissions_actual`/
+`indirect_emissions_actual` - the two fields every prompt/plumbing fix on
+the smaller 7-8B models never moved past ~10%, and that
+`qwen2.5:14b-instruct` itself only reached 57% on without this fix - now
+sit at 86%, no longer asymmetric between direct and indirect (both
+regressions above specifically broke that symmetry; the final numbers
+restore it). 0 exhausted records this run.
+
+**Honest limits, stated plainly (not glossed over):** this targets the
+harness's own fixed document templates, not general-purpose document
+understanding - a real-world document in a different format falls back to
+exactly the pre-existing model-reads-document_text behavior, unchanged.
+The improvement is real for this benchmark; it is not a claim about
+extraction robustness against arbitrary real-world documents. Both
+regressions were introduced by this session's own changes and fixed
+within the same session, each live-verified individually rather than
+trusted from a single aggregate number.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 172
+passed (154 + 18 new: 14 in `test_field_extraction.py`, 4 in
+`test_tools.py`; no existing test's expectations changed).
+
+---
+
 ## Architecture Reference
 
 ```
