@@ -2028,6 +2028,98 @@ doing them one experiment at a time.
 
 ---
 
+## qwen2.5:14b-instruct at full 20-record scale: the strongest result yet (2026-09-17)
+
+Direct continuation of the qwen3:8b re-test above, at the human partner's
+request to pursue the one item that section left explicitly open:
+`qwen2.5:14b-instruct` (M4's other 0%-scoring model, for the same
+multi-tool-call-per-turn reason `qwen3:8b` was wrongly dismissed) had never
+been re-tested against the real, fixed harness.
+
+**Infra:** the local-dev stack had been fully torn down since the last
+session (WSL2/Docker Desktop stopped, per this project's standing practice
+of not leaving it running idle). Brought Docker Desktop back up, recreated
+`docker-compose.local-dev.yml` (fresh volumes — a new compose project name
+was used, so this is a clean Postgres/Odoo/Ollama, not a reuse of any
+previous session's data), verified the nginx gate for real (wrong key →
+401, `qwen2.5:14b-instruct` pulled at 9.0 GB and confirmed fully
+GPU-resident via `nvidia-smi`, ~9.8/12.2 GB VRAM).
+
+**First check, 10 records (`docs/evaluation-qwen25-14b-2026-09-17.md`,
+same `SYNTH-0000`-`SYNTH-0009` records used for the `llama3.1:8b`/
+`qwen2.5:7b-instruct`/`qwen3:8b` comparisons):** 7/10 completed, 3/10
+exhausted, field accuracy 70% on the plumbing-reachable fields and 62%
+(5/8) on `direct_emissions_actual`/`indirect_emissions_actual` — more than
+double every other model tested on these same records. Live-traced
+`SYNTH-0007` (aluminium/secondary_recycled/MA) message-by-message before
+trusting the aggregate: the model correctly extracted
+`direct_emissions_actual=0.105`/`indirect_emissions_actual=0.331` from the
+raw document text via `extract_field` and wrote them correctly via
+`write_declaration_line` under their real field names — genuine, unaided
+extraction, not a scoring artifact (these two fields are never
+dispatcher-injected from known_context).
+
+**Full 20-record run (`docs/evaluation-qwen25-14b-full20-2026-09-17.md`):**
+a single-process full-20 attempt was killed by this session's
+background-task memory monitor — the same memory-pressure pattern
+documented in "The full 20-record run" section above, despite that
+section's `~/.wslconfig` memory-ceiling fix still being in place on this
+machine. `nvidia-smi` confirmed the model was fully GPU-resident during the
+run (~9.8 GB VRAM), ruling out CPU-spillover as the cause — this looks like
+the same Windows-side "reserved-but-reclaimable" memory-accounting issue
+documented in that section, just triggered by a bigger model's larger
+working set. Fixed the same way that section's human partner chose then:
+ran the 20 records as 4 independent batches of 5, each its own fresh
+Python process (so nothing accumulates across batches) - zero further kills
+across all 4 batches.
+
+**Result:**
+
+| | completed | escalated | exhausted |
+|---|---|---|---|
+| 20 records | 14 | 0 | 6 |
+
+| field | llama3.1:8b (full 20) | qwen2.5:14b-instruct (full 20) |
+|---|---|---|
+| quantity_tonnes | 4/20 (20%) | 14/20 (70%) |
+| data_source | 4/20 (20%) | 14/20 (70%) |
+| carbon_price_paid_origin | 3/20 (15%) | 12/20 (60%) |
+| precursor_emissions | 4/20 (20%) | 14/20 (70%) |
+| direct_emissions_actual | 1/14 (7%) | 8/14 (57%) |
+| indirect_emissions_actual | 1/14 (7%) | 8/14 (57%) |
+
+**This is the strongest result this project has measured against any
+model, at full 20-record scale, not a small subsample.** Every field
+improves substantially, including the two genuine-extraction fields
+(`direct_emissions_actual`/`indirect_emissions_actual`) that have been this
+project's persistent ceiling across every prompt/plumbing fix tried against
+the two smaller (7-8B) models - 57%, up from 7% for `llama3.1:8b` and 12%
+for `qwen3:8b`. Unlike the `qwen3:8b` correction (which only tied
+`llama3.1:8b`), this is a clear, large improvement, not a wash. The failure
+pattern is also cleaner: all 6 exhausted records failed on every scored
+field (never reached a write) with zero escalations, versus the smaller
+models' mixed completed/escalated/exhausted spread.
+
+**Honest framing, unchanged in kind from every section above:** real,
+verified, substantial improvement - not a claim of solved reliability. 6/20
+records still never complete a write, and no field reaches 100%. But this
+is the first evidence in this project's history that the small-model
+tool-calling ceiling identified back in M4 is not a hard architectural wall
+- a larger model in the same open-weight tier closes most of the remaining
+gap.
+
+**Recommendation, not yet decided:** `qwen2.5:14b-instruct` should be
+considered the new default model for this project's agent loop, at the
+cost of a larger VRAM footprint (9.8 GB vs. `llama3.1:8b`'s much smaller
+one - both fit the project's RTX 5070 12 GB dev GPU, but with less
+headroom left over). A decision for the human partner, not made silently
+here.
+
+**Verification:** no test suite changes - a real live-infra model
+comparison, not a code change.
+
+---
+
 ## Architecture Reference
 
 ```
