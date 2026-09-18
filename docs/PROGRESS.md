@@ -2501,6 +2501,43 @@ been).
 
 ---
 
+## check_consistency grounding - punch list "Change #2" (2026-09-18)
+
+Direct continuation, implementing the punch list's "Change #2" item at
+the human partner's request: `check_consistency` previously validated a
+dict the model hand-constructs with zero connection to
+`self._extracted_texts` - already directly evidenced by the earlier
+`SYNTH-0038` trace (self-consistency test section) where the model
+fabricated a value and `check_consistency` said nothing, only caught much
+later by `write_declaration_line`'s stricter gate after 3 wasted attempts.
+Full write-up: `docs/check-consistency-grounding-2026-09-18.md`.
+
+**Fix:** `_check_consistency` now checks `direct_emissions_actual`/
+`indirect_emissions_actual` against `self._extracted_texts` - the same
+session-state list the write-time gate already uses - flagging a claimed
+value not found in any actually-extracted document text as a possible
+fabrication, with a specific message suggesting `flag_for_human_review`.
+`0` is exempt (the field's own default, not a plausible hallucination
+target). TDD'd, 2 new tests; 1 existing test's setup updated to add a
+matching `extract_field` call first (since "clean data" now means
+"grounded data").
+
+**Live-verified:** re-traced `SYNTH-0038` - the model fabricated a
+*different* value this time (`0.214`, not the earlier `0.05` - confirming
+a real, recurring failure shape, not a one-off), `check_consistency`
+caught it immediately, and the model escalated in 5 iterations (vs. 8
+previously) with an honest, specific reason instead of arguing with a
+hard rejection 3 times at the very last step. Field score unchanged (0/6
+- the data is genuinely absent, escalating is the correct outcome either
+way) - the win is reaching it faster and via a signal the model itself
+recognized, not a wall it kept hitting.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 175
+passed (173 + 2 new; no existing test's expectations changed beyond the
+one updated setup).
+
+---
+
 ## Architecture Reference
 
 ```

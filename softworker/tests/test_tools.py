@@ -315,7 +315,11 @@ def test_check_consistency_flags_implausibly_high_direct_emissions():
 
 
 def test_check_consistency_returns_no_issues_for_clean_data():
-    dispatcher = _make_dispatcher(FakeOdooClient())
+    odoo_client = FakeOdooClient(document_text="Direct emissions measured at 1.9 t CO2e/t.")
+    dispatcher = _make_dispatcher(odoo_client)
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
 
     result = dispatcher.execute(
         "check_consistency",
@@ -326,6 +330,50 @@ def test_check_consistency_returns_no_issues_for_clean_data():
                 "direct_emissions_actual": 1.9,
             }
         },
+    )
+
+    assert result["issues"] == []
+
+
+def test_check_consistency_flags_a_value_never_actually_extracted():
+    # Grounding check (punch list "Change #2", docs/PROGRESS.md's
+    # "Session synthesis" section): check_consistency previously validated
+    # a dict the model hand-constructs with zero connection to
+    # self._extracted_texts - a model could report a fabricated number and
+    # get {"issues": []} back. A real live trace (SYNTH-0038) showed
+    # exactly this: the model fabricated direct_emissions_actual=0.05 for
+    # a field genuinely absent from the document, and check_consistency
+    # said nothing - the fabrication was only caught later, at
+    # write_declaration_line's stricter source_quote gate, after wasting
+    # several more iterations arguing about it. Surfacing it here gives
+    # the model a chance to reconsider a step earlier.
+    dispatcher = _make_dispatcher(FakeOdooClient(document_text="No emissions data here."))
+
+    result = dispatcher.execute(
+        "check_consistency",
+        {
+            "extracted_data": {
+                "quantity_tonnes": 100,
+                "data_source": "actual",
+                "direct_emissions_actual": 0.05,
+            }
+        },
+    )
+
+    assert any(
+        "direct_emissions_actual" in issue and "0.05" in issue for issue in result["issues"]
+    )
+
+
+def test_check_consistency_does_not_flag_zero_as_a_fabrication():
+    # 0 is the field's own Pydantic default, not a plausible hallucination
+    # target - a model passing 0 to mean "I don't have this" should not
+    # get an extra, misleading "fabrication" warning on top.
+    dispatcher = _make_dispatcher(FakeOdooClient(document_text="No emissions data here."))
+
+    result = dispatcher.execute(
+        "check_consistency",
+        {"extracted_data": {"quantity_tonnes": 100, "direct_emissions_actual": 0}},
     )
 
     assert result["issues"] == []

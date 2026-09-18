@@ -375,8 +375,35 @@ class ToolDispatcher:
                     f"steel/aluminium production (> {PLAUSIBLE_EF_MAX} t "
                     "CO2e/t) - check for a unit or decimal-place extraction error"
                 )
+            # Grounding check: this used to validate a dict the model
+            # hand-constructs with zero connection to self._extracted_texts
+            # - a real live trace (SYNTH-0038) showed the model fabricating
+            # a value for a field genuinely absent from the document and
+            # getting {"issues": []} back, only caught much later by
+            # write_declaration_line's stricter (quote-based) gate after
+            # several wasted iterations. 0 is the field's own default, not
+            # a plausible hallucination target, so it's exempt.
+            elif value != 0 and not self._value_grounded_in_extracted_text(value):
+                issues.append(
+                    f"{field_name}={value} was not found in any document "
+                    "text extract_field has actually returned this job - "
+                    "this may be a fabricated or misremembered value; "
+                    "verify it against the real document_text, or call "
+                    "flag_for_human_review if you cannot confirm it."
+                )
 
         return {"issues": issues}
+
+    def _value_grounded_in_extracted_text(self, value):
+        candidates = {str(value)}
+        try:
+            candidates.add(f"{float(value):g}")
+        except (TypeError, ValueError):
+            pass
+        return any(
+            any(candidate in text for candidate in candidates)
+            for text in self._extracted_texts
+        )
 
     def _request_missing_data(self, field_name, reason):
         return {"acknowledged": True, "field_name": field_name, "reason": reason}
