@@ -1,29 +1,34 @@
 services:
 
-  tailscale:
-    image: tailscale/tailscale:v1.102.3
-    container_name: hardworker-tailscale
-    hostname: cbam-hardworker
-    environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_USERSPACE=false
-    volumes:
-      - tailscale-state:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    restart: unless-stopped
+  # No tailscale sidecar container here - the same workaround already
+  # applied to softworker/docker-compose.yml, for the same reason: the
+  # Tailscale admin console's key-generation page produces auth keys
+  # (containing the literal substring "CNTRL") that the real control
+  # server rejects outright - reproduced 3 times, root cause not found,
+  # flagged to Tailscale support rather than debugged further blind (see
+  # docs/PROGRESS.md's "Rename to hardworker/softworker" section). This
+  # host is expected to already run its own Tailscale client natively and
+  # be authenticated on the tailnet - ollama/nginx publish their ports to
+  # the host instead of joining a dedicated sidecar's network namespace.
+  # Trade-off: no per-role Tailscale identity (cbam-hardworker) or
+  # tag-scoped ACLs (tailscale-acl-example.json) - reachability depends on
+  # whatever ACLs apply to this host's own node, same as softworker.
+  # Revisit if the admin console bug is ever resolved.
 
   ollama:
     image: ollama/ollama:0.33.3
     container_name: hardworker-ollama
-    network_mode: service:tailscale
-    volumes:
-      - ollama-models:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama-models:/root/.ollama
+    ports:
+      # Published here, not on nginx: nginx shares this container's network
+      # namespace (see nginx service below - the same mechanism already
+      # proven in docker-compose.local-dev.yml), so 8443 (nginx's listener)
+      # is reachable through the network namespace ollama owns, and from
+      # there onto the host's own tailnet identity.
+      - "8443:8443"
     restart: unless-stopped
     # GPU support — uncomment if NVIDIA GPU is present and nvidia-container-toolkit is installed:
     # deploy:
@@ -37,7 +42,6 @@ services:
   nginx:
     image: nginx:1.30.4
     container_name: hardworker-nginx
-    network_mode: service:tailscale
     environment:
       # Required so the image's built-in envsubst-on-templates entrypoint
       # (docker-entrypoint.d/20-envsubst-on-templates.sh) can substitute
@@ -50,11 +54,15 @@ services:
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
     depends_on:
       - ollama
-      - tailscale
+    # Shares ollama's network namespace so nginx.conf.template's
+    # `proxy_pass http://127.0.0.1:11434` (unmodified, byte-for-byte - see
+    # that file's own header comment) still reaches ollama's listener,
+    # without a tailscale sidecar for both to share instead. network_mode
+    # is mutually exclusive with `ports:`, so none is set here.
+    network_mode: "service:ollama"
     restart: unless-stopped
     # nginx listens on port 8443 (TLS termination handled at the tailscale/firewall layer;
     # nginx itself listens plain HTTP on 8443 — acceptable on a private tailnet)
 
 volumes:
-  tailscale-state:
   ollama-models:

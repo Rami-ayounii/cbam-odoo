@@ -2538,6 +2538,71 @@ one updated setup).
 
 ---
 
+## Hardworker Tailscale fix (pre-emptive), and a rejected few-shot prompt experiment (2026-09-18)
+
+Direct continuation. Full write-up:
+`docs/hardworker-tailscale-fix-and-fewshot-rejected-2026-09-18.md`.
+
+**Part 1 - low-cost fix, requested since the human partner is currently
+away from the hardworker machine:** `hardworker/docker-compose.yml` still
+ran the old Tailscale-sidecar pattern that already broke once for
+softworker (the admin console's key-generation page produces auth keys
+the real control server rejects outright - `CNTRL` substring, root cause
+never found). Applied the exact same already-proven workaround
+(`softworker`'s fix, and `docker-compose.local-dev.yml`'s
+`network_mode: "service:ollama"` pattern) so hardworker won't hit the
+identical wall the next time someone brings it up: dropped the
+`tailscale` service, `nginx` shares `ollama`'s network namespace, `ollama`
+publishes `8443` directly. Also cleaned up `TS_AUTHKEY` from both
+`.env.example` files (softworker's had never been cleaned up when its own
+fix was made earlier) and `docs/secret-rotation.md`'s now-inapplicable
+rotation row, and fixed `softworker/.env.example`'s stale
+`OLLAMA_BASE_URL` placeholder (still said "cbam-hardworker", hardworker's
+now-retired per-role identity). Validated with `docker compose config`.
+**Not done, and can't be from here:** the actual live two-machine
+verification still needs physical/remote access to hardworker - this
+only removes the already-diagnosed obstacle that would otherwise block
+it on arrival.
+
+**Part 2 - the punch list's last "Change" item, tried and rejected:** a
+worked few-shot extraction example added to `SYSTEM_PROMPT`, using an
+illustrative number (`"direct_emissions_actual": 2.340`) to contrast
+correct extraction against a correctly-refused fabrication. **Result: a
+real, reproducible regression** - two independent full 20-record runs
+both landed at ~65-75% across the six scored fields, down from the
+~90% baseline immediately before, confirmed as a real effect (not
+sampling noise) by getting consistently similar numbers both times.
+
+**Root cause, live-traced (`SYNTH-0004`):** the model correctly extracted
+the real `direct_emissions_actual=0.775` early on, then several turns
+later said verbatim *"the direct emissions actual value of 2.340
+tCO2e/tonne of product"* - **2.340 is the example's own illustrative
+number**, not this record's real data. The model confused the system
+prompt's worked example with genuine document content mid-conversation
+and overwrote an already-correct value with one hallucinated straight
+from the example text.
+
+**Decision: reverted, not kept.** A concrete number sharing the same
+textual shape as a real extraction target is exactly the kind of content
+this model blends with genuine document content over a multi-turn
+conversation - the fix meant to demonstrate ideal behavior became a
+worse source of fabrication than the problem `check_consistency`'s
+grounding check was just built to catch. Re-traced `SYNTH-0004` after
+reverting - correctly writes `0.775` again. A real, informative negative
+result: showing this model class a concrete worked example is materially
+riskier than every "remove a burden" fix that preceded it, not a smaller
+version of the same thing. If revisited, any future example would need
+to avoid a plausible-looking, correctly-formatted number entirely (an
+abstract placeholder, not `2.340`) - flagged as the lesson, not
+attempted here.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 175
+passed throughout (Part 1 is config-only, no test changes; Part 2's
+prompt was reverted to its exact prior committed state - `git diff` on
+`main.py` is empty).
+
+---
+
 ## Architecture Reference
 
 ```
