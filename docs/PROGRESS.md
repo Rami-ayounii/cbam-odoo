@@ -2434,6 +2434,73 @@ added; no other existing test's expectations changed).
 
 ---
 
+## Self-consistency test (rejected), and two real fixes found by chasing systematic failures instead (2026-09-18)
+
+Direct continuation, at the human partner's request to test
+self-consistency (running each record twice, majority vote) as a guard
+against the temperature=0.1 stochasticity flagged in the full-50-record
+benchmark section, before deciding whether to adopt it. Full write-up:
+`docs/self-consistency-test-and-two-fixes-2026-09-18.md`.
+
+**Experiment:** 15 records, 2 independent live runs each (30 total agent-
+loop runs). Result: 13/15 both-correct, 2/15 both-wrong (same failure
+both times), **0/15 disagreed**. Self-consistency is only useful when
+errors are random noise a second draw might dodge; every failure observed
+here was systematic (same root cause every run). Decision: **rejected,
+not adopted** - 2x cost for zero measured benefit, and majority-voting
+would have actively increased false confidence on the systematically-
+wrong records (two identical wrong answers "agreeing" looks like
+confidence, not a warning).
+
+**Instead, traced both systematic failures directly - unlike random
+noise, a systematic failure has an actual fixable cause:**
+
+1. **`SYNTH-0009` (carbon_price_paid_origin wrong both times):** the
+   model's own extraction plan sometimes never mentions
+   `carbon_price_paid_origin` at all - not a parsing failure (the regex
+   already handles this field correctly), an attention failure. Fixed in
+   `tools.py`'s `_extract_field`: whenever the model calls `extract_field`
+   for *any* field, the dispatcher now also opportunistically runs the
+   deterministic regex parse for `carbon_price_paid_origin` against the
+   same document and remembers the result silently - the model never
+   needs to think to ask for it by name. TDD'd, live-verified: `SYNTH-0009`
+   now writes `carbon_price_paid_origin=58.01` correctly without the model
+   ever mentioning that field.
+2. **`SYNTH-0010` (exhausted both times, customs_declaration + actual
+   source, structurally no emissions data available):** the model tried
+   `lookup_default_value` as a workaround, then hallucinated in its own
+   reasoning that `data_source` "must really be default" - false, since
+   `execute()` always overrides `data_source` from `known_context`
+   regardless of what the model believes - and burned all 9 iterations
+   retrying near-identical failed writes. Fixed with a `SYSTEM_PROMPT`
+   addition naming this exact failure mode and instructing immediate
+   `flag_for_human_review` instead. Live-verified: 3 iterations instead
+   of 9, a clean `escalated` status with the correct stated reason,
+   instead of `exhausted` after 9 rounds of self-contradiction. The field
+   score is unchanged (0/6 - the data is genuinely, structurally absent,
+   so escalating is the only correct outcome) - the win is reaching that
+   correct outcome on a third of the iteration budget, with a status
+   that's actually useful to a human reviewer instead of an ambiguous
+   "exhausted."
+
+**Combined re-validation, records 0-19:**
+
+| field | before | after |
+|---|---|---|
+| quantity_tonnes / data_source / precursor_emissions | 90% | 90% (unchanged) |
+| carbon_price_paid_origin | 70% | **80%** |
+| direct/indirect_emissions_actual | 86% | 86% (unchanged) |
+
+Only the field Fix 1 directly targets moved - consistent with a targeted
+fix, not sampling noise.
+
+**Verification:** `python -m pytest softworker/tests/ shared/ -q` → 173
+passed (172 + 1 new regression test for Fix 1; Fix 2 is prompt-only, no
+test to add, verified live as every prior prompt fix in this project has
+been).
+
+---
+
 ## Architecture Reference
 
 ```

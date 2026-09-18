@@ -148,6 +148,49 @@ def test_extract_field_includes_a_deterministic_parsed_value_keyed_by_the_real_f
     assert "Direct embedded emissions" in result["document_text"]
 
 
+def test_extract_field_opportunistically_remembers_carbon_price_even_when_never_asked_for():
+    # Real bug found live (docs/PROGRESS.md's self-consistency-test
+    # section, SYNTH-0009): the model's own plan sometimes only ever
+    # covers "extract direct and indirect emissions" and genuinely never
+    # calls extract_field(field_name="carbon_price_paid_origin") at all -
+    # not a parsing failure, an attention failure - even though the real
+    # value is sitting in the same document it already read for direct/
+    # indirect. Since the document is already in hand from any
+    # extract_field call, the dispatcher can silently recover this value
+    # the same way it recovers a null-passed field elsewhere - it never
+    # needs the model to ask for it by name.
+    odoo_client = FakeOdooClient(
+        document_text=(
+            "Direct embedded emissions : 0.485 tCO2e/t\n"
+            "Carbon price paid (origin) : 58.01 EUR/tCO2e\n"
+        ),
+        write_result_id=17,
+    )
+    dispatcher = _make_dispatcher(odoo_client)
+    # The model only ever asks about direct_emissions_actual - never
+    # carbon_price_paid_origin - mirroring the real live trace exactly.
+    dispatcher.execute(
+        "extract_field", {"document_id": "doc-1", "field_name": "direct_emissions_actual"}
+    )
+
+    result = dispatcher.execute(
+        "write_declaration_line",
+        {
+            "declaration_id": 1,
+            "good_id": 2,
+            "installation_id": 3,
+            "quantity_tonnes": 49.57,
+            "data_source": "actual",
+            "direct_emissions_actual": 0.485,
+            "indirect_emissions_actual": 6.129,
+            "source_quote": "Direct embedded emissions : 0.485 tCO2e/t",
+        },
+    )
+
+    assert result["declaration_line_id"] == 17
+    assert odoo_client.written["carbon_price_paid_origin"] == pytest.approx(58.01)
+
+
 def test_extract_field_has_no_deterministic_value_when_no_pattern_matches():
     odoo_client = FakeOdooClient(
         document_text="This document does not follow any known template."

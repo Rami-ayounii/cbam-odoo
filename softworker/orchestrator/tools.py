@@ -296,6 +296,25 @@ class ToolDispatcher:
                     "use source_quote above as write_declaration_line's "
                     "source_quote argument."
                 )
+
+        # Opportunistic recovery for carbon_price_paid_origin specifically:
+        # a real live trace (SYNTH-0009) showed the model's own extraction
+        # plan sometimes never mentions this field at all - not a parsing
+        # failure, an attention failure, since it only ever asked for
+        # direct/indirect emissions from the very same document. The
+        # document is already in hand from any extract_field call
+        # regardless of which field_name was requested, so the dispatcher
+        # can recover this value without needing the model to think to
+        # ask for it by name - same "remove a burden the model doesn't
+        # reliably shoulder" reasoning as every other remembered-value
+        # mechanism here. Silent (not added to the tool result) so it
+        # doesn't add more unsolicited fields for the model to parse.
+        if field_name != "carbon_price_paid_origin":
+            carbon_price_parsed = regex_extract_field(text, "carbon_price_paid_origin")
+            if carbon_price_parsed is not None:
+                self._remembered_write_fields["carbon_price_paid_origin"] = (
+                    carbon_price_parsed["value"]
+                )
         return result
 
     def _lookup_default_value(self, sector, route, country):

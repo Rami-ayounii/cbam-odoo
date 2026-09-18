@@ -97,7 +97,17 @@ SYSTEM_PROMPT = (
     "from. A paraphrase, a summary, or a quote you did not really read "
     "from a document will be rejected and the write will fail. If you "
     "cannot find a real sentence containing the figure, call "
-    "flag_for_human_review instead of inventing one."
+    "flag_for_human_review instead of inventing one. "
+    "data_source is fixed by the context object and you cannot change it: "
+    "if it says 'actual' but the document genuinely contains no emissions "
+    "figures at all (some document types, like a customs declaration, "
+    "never carry this data), do not call lookup_default_value as a "
+    "workaround, and do not tell yourself data_source must really be "
+    "'default' - it is not, no matter what write_declaration_line's error "
+    "message might tempt you to conclude. Call flag_for_human_review "
+    "immediately in that case, stating that no actual emissions data "
+    "exists in the available document, rather than retrying the same "
+    "rejected call with small variations."
 )
 
 app = FastAPI(title="CBAM Orchestrator")
