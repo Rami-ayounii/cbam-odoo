@@ -51,3 +51,9 @@ Thumbs.db
 *.fls
 *.fdb_latexmk
 *.synctex.gz
+
+# Reference material, not part of this project
+stage.pdf
+PFA_Emna_Rami_final.pdf
+Templates en Latex pour PFE version Anglais/
+Templates en Latex pour PFE version Anglais.zip
