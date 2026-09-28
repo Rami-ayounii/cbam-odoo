@@ -1,0 +1,94 @@
+\newcommand{\reportAuthor} {%
+    \textsc{Rami Ayouni}%
+}
+
+\newcommand{\reportTitle} {%
+   Agentic AI for Automated CBAM Compliance Declarations in Odoo
+}
+
+\newcommand{\reportSubject} {%
+   Agentic AI for Automated CBAM Compliance\\ Declarations in Odoo%
+}
+
+% TODO: set the real defense date before submitting.
+\newcommand{\dateSoutenance} {%
+  jj/mm/aaaa%
+}
+
+\newcommand{\studyDepartment} {%
+  Data Engineering and Decision Systems
+}
+
+\newcommand{\ecole} {%
+  The National School of Electronics and Telecommunications of Sfax
+}
+
+\newcommand{\codePFE} {% Reference %
+}
+
+% TODO: the jury president and reviewer are placeholders -- fill in the
+% real names before submitting. The professional supervisor is already
+% filled in below (see acknowledgement.tex / PROGRESS.md).
+\newcommand{\juryPresident} {%
+  Mr Foulen \textsc{Fouleni}%
+}
+\newcommand{\juryPresidentDesc} {%
+  President%
+}
+
+\newcommand{\juryMemberOne} {%
+  Mr Fahmi \textsc{Bedbabis}%
+}
+\newcommand{\juryMemberOneDesc} {%
+  Supervisor %Mentor
+}
+
+\newcommand{\juryMemberTwo} {%
+  Mr Foulen \textsc{Fouleni}%
+}
+\newcommand{\juryMemberTwoDesc} {%
+  Reviewer% Examiner, Reporter
+}
+
+\newcommand{\specialcell}[1]{%
+  \begin{tabularx}{\textwidth}{@{}X@{}}#1\end{tabularx}%
+}
+
+\renewcommand{\thechapter}{\Roman{chapter}}
+
+% ============================================================
+% Added for the CBAM report's own content (chapters 1-3):
+% - placeins: the cls does not load it, but the chapters use
+%   \FloatBarrier after every figure/table to keep floats from
+%   drifting past their own section.
+% - tikz libraries: the cls loads plain tikz but not these; the
+%   ReAct-loop, use-case, sequence, class, and architecture diagrams
+%   in chapters 1-2 need all four (shapes.geometric in particular is
+%   required for the \node[ellipse] use-case diagram -- omitting it
+%   is a hard compile error, confirmed when this report was first
+%   compiled standalone before being ported into this template).
+% - longtable: the FR/NFR requirement tables (chapter 2) are too long
+%   to fit a single page as a fixed-height tabular float; longtable
+%   lets them break across pages with the header row repeated.
+% ============================================================
+\usepackage{placeins}
+\usepackage{longtable}
+\usetikzlibrary{arrows.meta, positioning, fit, shapes.geometric}
+
+% The title page (main.tex) is ported from the author's own prior PFE
+% report (PFA_Emna_Rami/Autres/autres.tex) which used \arrayrulecolor
+% {reportType} without ever defining that color anywhere in that
+% project -- a real bug there. Defined here as an alias of this cls's
+% own Gris1 so the header rule matches the rest of this document's
+% palette.
+\colorlet{reportType}{Gris1}
+
+% The cls loads natbib in author-year mode, which renders \cite{...} as
+% "Author [year]" and doubles the name wherever the prose already names
+% the author; the report is written for numeric citations.
+\setcitestyle{numbers,square}
+
+% Left-aligned table columns: justified text in narrow cells leaves wide
+% gaps between words.
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\renewcommand{\tabularxcolumn}[1]{>{\raggedright\arraybackslash}p{#1}}

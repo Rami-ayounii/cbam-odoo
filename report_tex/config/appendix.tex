@@ -1,0 +1,20 @@
+\chapter*{Appendix}
+\addcontentsline{toc}{chapter}{Appendix}
+\adjustmtc
+\thispagestyle{MyStyle}
+
+%% add to table of contents : Annexe.1
+\makeatletter\renewcommand\thesection{A.\@arabic\c@section}\makeatother
+
+%add spacing in the table of figures
+\addtocontents{lof}{\vspace{0.3cm}}
+
+\appendix
+\renewcommand{\thefigure}{A.\arabic{figure}}
+\setcounter{figure}{0}
+
+% TODO: no appendix material has been prepared yet. Candidates worth
+% adding here: the full JSON tool schemas for the seven agent tools
+% (shared/tool_schemas/*.json), the CBAM declaration-line data model's
+% full field list, or a sample full tool-call trace from a completed
+% job. Left empty rather than filled with placeholder content.

@@ -1,0 +1,43 @@
+\chapter*{General Introduction}
+\addcontentsline{toc}{chapter}{General Introduction}
+\adjustmtc
+\thispagestyle{MyStyle}
+
+\lettrine{R}{egulatory} compliance in international trade has traditionally
+relied on manual document review: an analyst reads a supplier's mill
+certificate or carbon-intensity report, cross-references it against a
+country's published default emission values, and manually computes a
+liability. As the European Union's \ac{CBAM} enters its definitive,
+annual-declaration phase in 2026, this manual burden falls on every EU
+importer of steel and aluminium and, symmetrically, creates new reporting
+pressure on the non-EU exporters whose shipment documents now feed
+directly into a foreign compliance calculation. \acp{LLM} offer an
+obvious lever to automate the reading and reconciliation of such
+documents, but a
+compliance number is exactly the kind of output where an LLM's
+well-documented tendency to hallucinate plausible-looking
+values~\cite{ji2023hallucination} cannot be tolerated.
+
+This project resolves that tension architecturally, rather than by simply
+hoping the model behaves. A \textbf{deterministic, LLM-free calculation
+engine} computes every compliance number. Around it sits a
+\textbf{genuinely agentic tool-use loop}: a locally hosted, open-weight
+LLM that decides for itself which extraction, lookup, and validation tool
+to call, in what order, until it is confident enough to write a result or
+escalates to a human instead. The two halves run on separate machines,
+communicating over a private network, and are integrated into a working
+Odoo~17 module --- so what comes out the other end is a declaration
+workflow a real compliance team could open and use, not a research
+prototype left in isolation.
+
+This report is organised into three chapters. Chapter~\ref{chap:context}
+establishes the regulatory context, states the problem, and reviews the
+literature on agentic AI, tool use, and hallucination risk that motivates
+the system's design. Chapter~\ref{chap:design} presents the system
+analysis and design: requirements, actors and use cases, the sequence and
+class diagrams, the design philosophy, and the system architecture.
+Chapter~\ref{chap:implementation} covers the implementation --- the
+calculation engine, the agentic pipeline, and the empirical evaluation
+results --- and closes with a candid discussion of the system's
+limitations. A general conclusion summarises the contribution and
+outlines future work.

@@ -1,0 +1,113 @@
+\chapter*{General Conclusion}
+\addcontentsline{toc}{chapter}{General Conclusion}
+\adjustmtc
+\thispagestyle{MyStyle}
+
+\lettrine{T}{his} project set out to address a concrete tension in
+applying large language models to regulatory compliance: the same
+unstructured-document reasoning that makes an LLM attractive for this
+task is exactly what makes it untrustworthy once it is allowed anywhere
+near a number that determines a real financial liability. Rather than
+avoiding LLMs altogether, this project kept the two concerns
+architecturally separate: a deterministic, independently verifiable
+calculation engine on one side, and a genuinely autonomous, ReAct-style
+tool-use agent on the other, wired together through a two-machine,
+VPN-meshed deployment and integrated into a working Odoo module.
+
+The evaluation turned up a finding more nuanced than a single accuracy
+number. The dominant constraint on agentic compliance extraction turned
+out to be a small local model's own tool-calling discipline, not the
+orchestration architecture built around it --- and, just as importantly,
+a model's apparent reliability depends heavily on how it is measured,
+rather than being some fixed property of the model itself. The project's
+own raw benchmark initially and wrongly dismissed a model that, once
+re-evaluated against the real execution harness, completed 8 of 10 jobs
+where the benchmark had predicted none, with field accuracy equal to the
+presumed leader's. \textbf{This methodology-sensitivity of model ranking is one of
+this work's central findings}: a benchmark that does not match the real
+system's execution semantics can actively mislead an architectural
+decision, and only empirical re-verification against the production path
+--- not a one-off benchmark score --- earns the right to trust a model
+choice. Pushing that same discipline further, at full and honest dataset
+scale rather than on a flattering subsample, the project went on to find
+a larger candidate model and a hybrid deterministic/regex-plus-LLM
+extraction path. Together they raised measured field accuracy from a
+0\% baseline to 64--86\% on plumbing-reachable fields and 76--81\% on the
+two fields requiring genuine document comprehension --- fields that, for
+most of this project's evaluation history, looked like a hard ceiling on
+what the model could do.
+
+Table~\ref{tab:objectives_outcome} returns to the three objectives and two
+research questions set in Chapter~\ref{chap:context} and states, for each,
+what this work achieved and where the evidence is.
+
+\begin{table}[H]
+\centering
+\setstretch{1.05}
+\small
+\begin{tabularx}{\textwidth}{|L{1.1cm}|X|L{3.0cm}|}
+\hline
+\textbf{Item} & \textbf{Outcome} & \textbf{Evidence} \\
+\hline
+\textbf{O1} & \textbf{Met.} Four pure calculation functions with no
+language-model involvement; the model only decides \textit{when} to call
+them. Twenty unit tests, written before the code, including a regression
+test for a caught sign-inversion bug. & Section~\ref{sec:calc_engine_cbam} \\
+\hline
+\textbf{O2} & \textbf{Met.} The loop executes whatever tool the model
+names; its only name-based branch is the model's own escalation signal.
+\textit{Not shown:} that this outperforms a fixed pipeline, since no
+single-shot baseline was run. & Section~\ref{sec:agentic_pipeline_cbam},
+Figure~\ref{fig:react_loop_cbam}, Table~\ref{tab:limitations} \\
+\hline
+\textbf{O3} & \textbf{Met, within limits.} Four models evaluated on a raw
+benchmark and on the real harness; the initial ranking was corrected. The
+model range (7--14B, one serving stack) and sample sizes are narrow. &
+Section~\ref{sec:model_selection_cbam}, Tables~\ref{tab:benchmark_raw}
+and~\ref{tab:model_comparison} \\
+\hline
+\textbf{RQ1} & \textbf{Usefully, but not yet at production level; and no,
+a raw benchmark does not predict it.} The final 14B configuration completed
+41/50 jobs with a write (82\%, 95\% CI 69--90\%), with 64--86\% accuracy on
+plumbing fields and 76--81\% on comprehension fields; the 7--8B models
+did markedly worse (5/20 completed, 7\% comprehension). The raw benchmark
+scored \texttt{qwen3:8b} at 0/10 valid calls, yet it completed 8/10 jobs on
+the real harness, with non-overlapping intervals. & Tables~\ref{tab:model_comparison}
+and~\ref{tab:eval_stages} \\
+\hline
+\textbf{RQ2} & \textbf{Architectural separation first, then three
+safeguards.} The calculation must never depend on the model. On top of
+that: facts the system already knows override the model's arguments;
+tool results are remembered across a job; and a measured emissions value
+is written only with a verbatim quote from extracted text, under hard
+plausibility bounds and a single-write guard. An advisory consistency
+check flags ungrounded values earlier in the loop. The quote gate was
+observed rejecting a live fabrication. Two costs remain: the gate can
+discard a correctly extracted sibling value, and resistance to deliberate
+prompt injection is structural only, not tested against crafted attacks. &
+Section~\ref{sec:agentic_pipeline_cbam}, Tables~\ref{tab:full50_mechanisms}
+and~\ref{tab:limitations} \\
+\hline
+\end{tabularx}
+\caption{Objectives and research questions: outcomes.}
+\label{tab:objectives_outcome}
+\end{table}
+\FloatBarrier
+
+Looking ahead, the two most important next steps are measuring the agentic
+loop against a single-shot extraction baseline on the same harness, and
+testing on real supplier documents; both would turn the current results
+from strong evidence on synthetic data into general claims. Beyond those,
+this work leaves a clear path forward: re-validating the
+two most recent targeted fixes at the same full dataset scale the rest of
+the evaluation insists on; resolving the identified interaction between
+the single-write design and the source-quote grounding gate;
+benchmarking additional and fine-tuned models against the same
+harness-matched methodology; extending the audit trail into a
+human-review interface that surfaces grounding confidence per field; and
+restoring the originally specified per-role network topology once its
+external blocker is resolved. Because deterministic calculation and
+agentic extraction were kept architecturally separate from the start,
+each of these is an incremental extension rather than a rebuild. The
+foundation is in place; what remains is to make the extraction layer as
+trustworthy as the calculation layer already is.

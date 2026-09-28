@@ -36,3 +36,18 @@ Thumbs.db
 
 # Claude Code worktrees (scratch, never committed)
 .claude/worktrees/
+
+# LaTeX build artifacts (report_tex/)
+*.aux
+*.bbl
+*.blg
+*.lof
+*.lot
+*.log
+*.maf
+*.mtc*
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz

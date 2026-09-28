@@ -1,0 +1,52 @@
+\chapter*{Abstract}
+\thispagestyle{MyStyle}
+
+\begin{spacing}{1.15}
+This internship, carried out at ninety.\ Startup House (Sfax), builds a
+system that prepares EU Carbon Border Adjustment Mechanism (CBAM)
+declarations for steel and aluminium imports inside Odoo~17. The design
+separates two concerns. A deterministic, unit-tested engine computes every
+compliance figure, while an agentic tool-use loop, driven by a locally
+hosted open-weight language model, decides which extraction, lookup and
+validation tools to call when reading supplier documents. Three safeguards
+protect the numeric output from model hallucination: facts already known
+to the system override the model's arguments, tool results are remembered
+across a job, and a measured emissions value is only written with a
+verbatim quote from the source document. The system runs on two machines
+linked by a private VPN. On 50 synthetic supplier documents, accuracy on
+the hardest field rose from 7\% with the first model tested to 81\% (95\%
+CI 66--91\%) with the final configuration. The evaluation also showed that
+a standard tool-calling benchmark wrongly ruled out a usable model, so
+model choice must be validated against the real execution path.
+
+\smallskip
+\noindent\textbf{Keywords:} agentic AI, large language models, tool use,
+CBAM, regulatory compliance, Odoo, hallucination mitigation.
+
+\section*{Résumé}
+
+Ce stage, réalisé chez ninety.\ Startup House (Sfax), développe un système
+qui prépare les déclarations du Mécanisme d'ajustement carbone aux
+frontières de l'UE (MACF/CBAM) pour les importations d'acier et
+d'aluminium dans Odoo~17. La conception sépare deux préoccupations. Un
+moteur de calcul déterministe et testé produit chaque valeur de
+conformité, tandis qu'une boucle agentique, pilotée par un modèle de
+langage open-weight hébergé localement, choisit les outils d'extraction,
+de recherche et de validation à appeler pour lire les documents des
+fournisseurs. Trois garde-fous protègent le résultat numérique contre les
+hallucinations du modèle : les faits déjà connus remplacent les arguments
+du modèle, les résultats d'outils sont mémorisés au cours d'une tâche, et
+une émission mesurée n'est enregistrée qu'accompagnée d'une citation
+exacte du document source. Le système fonctionne sur deux machines
+reliées par un VPN privé. Sur 50 documents synthétiques, la précision sur
+le champ le plus difficile passe de 7\,\% avec le premier modèle testé à
+81\,\% (IC à 95\,\% : 66--91\,\%) avec la configuration finale.
+L'évaluation montre aussi qu'un benchmark standard d'appel d'outils avait
+écarté à tort un modèle utilisable : le choix du modèle doit être validé
+sur le chemin d'exécution réel.
+
+\smallskip
+\noindent\textbf{Mots-clés :} IA agentique, grands modèles de langage,
+utilisation d'outils, MACF, conformité réglementaire, Odoo, atténuation
+des hallucinations.
+\end{spacing}

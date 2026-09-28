@@ -1,0 +1,517 @@
+\chapter{Project Context and State of the Art}
+\label{chap:context}
+\begin{spacing}{1.2}
+\minitoc
+\thispagestyle{MyStyle}
+\end{spacing}
+\newpage
+
+\section{Introduction}
+
+This chapter first presents the host organisation in which this project
+was carried out, then reviews the state of the art in EU CBAM regulation
+and in agentic, tool-using language models, critiques that state of the
+art against the specific demands of high-stakes numeric compliance work,
+and formulates the resulting problem. It then reviews the existing
+methodologies used for compliance-document automation and their limits,
+and closes by presenting this project's proposed solution objectives,
+research questions, and scope.
+
+% ─────────────────────────────────────────────
+\section{Host Organisation}
+
+This project was carried out at \textbf{ninety. Startup House}, an
+accelerator and incubator based in Sfax, Tunisia (Rte Mahdia KM~1.5, El
+Bosten).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=7.5cm]{ninety-logo.png}
+\caption{ninety. Startup House logo.}
+\label{fig:ninety_logo}
+\end{figure}
+\FloatBarrier
+
+\subsection*{Mission and Vision}
+
+ninety.'s stated mission is to assist innovative SMEs and startups
+throughout their entrepreneurial journey, by offering a dynamic working
+environment, personalised support, and the resources needed to turn an
+idea into a functioning business. Its longer-term vision is to become a
+primary innovation catalyst for the Sfax region, building an ecosystem in
+which startups can not only survive but grow, and in doing so inspire
+further entrepreneurship locally.
+
+\subsection*{Core Values}
+
+The organisation identifies five values as central to how it operates:
+
+\begin{itemize}[label=\textbullet]
+    \item \textbf{Innovation} fostering creativity and originality in the
+    startups it hosts.
+    \item \textbf{Collaboration} encouraging teamwork between startups,
+    mentors, and investors.
+    \item \textbf{Community} building a supportive network oriented
+    toward shared success.
+    \item \textbf{Excellence} pursuing continuous improvement and
+    quality.
+    \item \textbf{Ethics} emphasising transparency, accountability, and
+    mutual respect.
+\end{itemize}
+
+\subsection*{Services}
+
+Alongside its acceleration and incubation programmes, ninety. offers
+coworking desks, private offices, dedicated training and study spaces,
+meeting rooms for presentations and workshops, and business
+domiciliation (virtual office) services for early-stage companies that
+do not yet need a physical office of their own.
+
+It is within this startup-support environment surrounding company
+building and entrepreneurship that the present project's own subject
+matter --- automating a specific, high-stakes regulatory compliance task
+with agentic AI --- was defined and carried out.
+
+% ─────────────────────────────────────────────
+\section{State of the Art}
+
+\subsection{EU CBAM as a Moving Regulatory Target}
+
+Regulation (EU) 2023/956 establishes the Carbon Border Adjustment
+Mechanism and its Annex~I/Annex~II scope~\cite{eu2023956}; Directive
+2003/87/EC, Art.~10a(1a), defines the phase-out schedule for the
+free-allocation benchmark deduction (2.5\% phased out in 2026, rising to
+100\% by 2034)~\cite{eudirective200387ec}; Commission Implementing
+Regulations 2025/2621 and 2026/1412 publish the yearly country/route
+default emission values, markup schedule, and EU ETS free-allocation
+benchmarks used in this project's reference data~\cite{eu20252621,eu20261412}.
+The Joint Research Centre's JRC134682 report~\cite{jrc134682} is the
+underlying scientific basis for these values. CBAM entered its
+\textbf{definitive phase on 1~January 2026}: declarations became
+\textbf{annual} rather than quarterly (the first annual declaration,
+covering 2026 imports, is due 30~September~2027), and a binding
+\textbf{50-tonne-per-year exemption} applies below which no certificate
+obligation arises~\cite{eu2023956}. What distinguishes this regulatory
+domain from a typical integration target is that the ``constants'' a
+naive implementation would reach for are neither constant nor available
+in one place: default emission values are published per exporting
+country, carry a yearly markup that itself changes, and are periodically
+revised by implementing acts~\cite{eu20252621} --- a requirement that
+shaped the data model (Section~\ref{sec:calc_engine_cbam}) more than any
+purely technical consideration did. A system that hardcodes these figures
+in application code is wrong the moment a new implementing regulation is
+published; the data must be modelled as a \textbf{versioned reference
+table}, not a constant.
+
+\subsection{Tool-Using LLMs and the ReAct Paradigm}
+\label{sec:react_paradigm_cbam}
+
+LLMs capable of multi-step reasoning and external tool use have enabled
+agents that autonomously decompose complex goals into executable
+steps~\cite{russell2020ai,wang2023agentsurvey}. Toolformer showed that a
+model can learn when and how to call external APIs~\cite{schick2023toolformer},
+and Gorilla that API-call accuracy depends heavily on how the tool
+interface is presented to the model~\cite{patil2023gorilla}; AgentBench
+found that open-weight models trail commercial ones most sharply on
+exactly this kind of multi-turn, instruction-following
+work~\cite{liu2024agentbench} --- a gap directly relevant to a project
+restricted to locally hosted models. The \textbf{ReAct} framework~\cite{yao2022react}
+grounds LLM reasoning in external reality by interleaving reasoning traces
+with action steps --- calls to external tools or APIs. At each step the
+agent produces a \textit{thought}, selects an \textit{action} (a tool call
+with structured arguments), and receives an \textit{observation} (the
+tool's result). This cycle repeats until sufficient information has been
+gathered, or the agent escalates. Figure~\ref{fig:react_loop_cbam}
+illustrates the loop as implemented in this project's orchestrator.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.2cm and 2.6cm,
+  thought/.style={rectangle, rounded corners=4pt, draw=blue!60, fill=blue!8,
+                  text width=3.4cm, align=center, font=\small, minimum height=0.8cm},
+  action/.style={rectangle, rounded corners=4pt, draw=orange!70, fill=orange!8,
+                 text width=3.4cm, align=center, font=\small, minimum height=0.8cm},
+  obs/.style={rectangle, rounded corners=4pt, draw=teal!60, fill=teal!7,
+              text width=3.4cm, align=center, font=\small, minimum height=0.8cm},
+  env/.style={rectangle, rounded corners=4pt, draw=gray!60, fill=gray!8,
+              text width=3.6cm, align=center, font=\small, minimum height=2.4cm,
+              dashed},
+  io/.style={rectangle, rounded corners=4pt, draw=green!60!black, fill=green!7,
+             text width=3.1cm, align=center, font=\small, minimum height=0.8cm},
+  arrow/.style={-{Stealth[length=5pt]}, thick},
+]
+\node[io] (task) {Declaration line to process};
+\node[thought, below=0.9cm of task]    (thought) {\textbf{Thought}\\What is known so far / what is missing};
+\node[action,  below=1.1cm of thought] (action)  {\textbf{Action}\\One of 7 tool calls, model-chosen};
+\node[obs,     below=1.1cm of action]  (obs)     {\textbf{Observation}\\Tool result fed back};
+\node[io, text width=4.6cm, font=\small\selectfont, below=0.9cm of obs] (answer)
+  {\footnotesize\texttt{write\_declaration\_line}\\ or \\ \footnotesize\texttt{flag\_for\_human\_review}};
+\node[env, right=2.8cm of action] (env)
+  {\textbf{Odoo (read-only) +}\\\textbf{Calculation Engine}\\[5pt]
+   \footnotesize extract\_field\\ lookup\_default\_value\\
+   check\_consistency\\ calculate\_emissions, \ldots};
+\draw[arrow] (task)    -- (thought);
+\draw[arrow] (thought) -- (action);
+\draw[arrow] (action)  -- (obs);
+\draw[arrow] (obs)     -- (answer);
+\draw[arrow, bend left=50]
+  (obs.west) to node[left, font=\scriptsize, text width=1.3cm, align=center]
+  {next\\reasoning\\step} (thought.west);
+\draw[arrow] (action.east) -- node[above, font=\scriptsize] {tool call} (env.west);
+\draw[arrow] (env.south)   -- ++(0,-0.5) -| node[pos=0.75, above, font=\scriptsize] {result}
+  (obs.east);
+\node[font=\scriptsize, text=gray, right=0.1cm of answer] {(single validated write)};
+\node[font=\scriptsize, text=gray, right=0.1cm of task]   {(job start)};
+\node[draw=blue!30, dashed, rounded corners=6pt,
+      fit=(thought)(action)(obs), inner sep=8pt,
+      label={[font=\footnotesize\itshape, blue!60]above:Agent Loop (max.\ 8--10 iterations)}] {};
+\end{tikzpicture}
+\vspace{0.3cm}
+\caption{The ReAct-style agent loop~\cite{yao2022react} as implemented for
+CBAM declaration processing.}
+\label{fig:react_loop_cbam}
+\end{figure}
+\FloatBarrier
+
+The distinguishing property of this execution model is that the loop
+itself carries no knowledge of which tool ``should'' come next --- that
+decision is made by the model at every turn, from the current conversation
+state, not by a step counter or a branch on a previous tool's name. A
+fixed pipeline that always calls ``extract quantity, then emissions, then
+calculate'' will, on a document where the emissions figure is genuinely
+absent, either fail outright or silently proceed with a placeholder; an
+agent that decides its own order can instead request missing data, retry a
+different extraction strategy, or escalate.
+
+\paragraph{What ``ReAct-style'' means precisely here.} This project
+borrows ReAct's interleaved reasoning-and-acting \textit{pattern}, not
+its original \textit{mechanism}. Table~\ref{tab:react_vs_project} sets out
+the difference.
+
+\begin{table}[H]
+\centering
+\setstretch{1.05}
+\small
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\textwidth}{|L{3.0cm}|X|X|}
+\hline
+\textbf{Aspect} & \textbf{Original ReAct~\cite{yao2022react}} & \textbf{This project} \\
+\hline
+Action mechanism & Harness parses literal \texttt{Thought:}/\texttt{Action:} text markers & Native function calling: the model returns a structured tool call \\
+\hline
+Reasoning step & Part of the parsed output format & Prompted, never enforced or parsed \\
+\hline
+Turn skipping reasoning & Malformed output & Accepted unchanged \\
+\hline
+Role of the reasoning trace & Drives control flow & Counted for observability only \\
+\hline
+\end{tabularx}
+\caption{Original ReAct versus this project's ReAct-style loop.}
+\label{tab:react_vs_project}
+\end{table}
+\FloatBarrier
+
+Not enforcing the reasoning step is deliberate: checking a turn's
+\textit{content} is one step away from the code deciding what a turn
+should contain, which would reintroduce the orchestrator-side ordering
+logic this design rules out. Instead, the loop counts every tool-calling
+turn and, separately, those whose content stated reasoning first, and
+reports both through the job status endpoint. That lets the report say,
+from evidence rather than assumption, how often the model actually
+behaves in the ReAct pattern.
+
+\subsection{Hallucination Risk in High-Stakes Numeric Extraction}
+
+Hallucination surveys~\cite{ji2023hallucination,huang2023hallucination} document the
+general tendency of generative language models to produce fluent,
+plausible content unsupported by their input --- a risk that becomes a
+compliance-integrity problem the moment the fabricated content is a number
+that determines a certificate liability. Mallen et al.~\cite{mallen2023trust}
+additionally show that LLM recall degrades specifically for rare, sparsely
+represented facts relative to popular ones --- directly analogous, in this
+project's domain, to a regulatory default value for an
+infrequently-traded country/route combination being exactly the kind of
+fact a general-purpose model is least reliable at recalling from
+parametric memory alone. This motivates routing every default value
+through a deterministic database lookup rather than ever trusting the
+model to recall or compute one itself.
+
+% ─────────────────────────────────────────────
+\section{Critique of the State of the Art}
+
+Taken individually, none of the three bodies of work reviewed above was
+designed for the exact situation this project sits in, and each leaves a
+gap that matters once the output is a compliance number rather than a
+chatbot answer.
+
+\textbf{The ReAct paradigm assumes, but cannot verify, that reasoning
+actually happens.} Its central claim is that interleaving explicit
+reasoning with action improves grounding and reduces error-propagation,
+but that claim rests entirely on the model choosing to produce the
+reasoning in the first place. Nothing in the paradigm itself, and nothing
+in the native function-calling interfaces that have since replaced its
+original text-parsing mechanism, gives an orchestrator a reliable way to
+confirm that a ``thought'' actually preceded an ``action'' rather than
+being an after-the-fact rationalisation. The only two ways to check would
+be to constrain the model's output format, which defeats the point of
+letting it call tools freely, or to simply trust it. In short, the
+paradigm is a prompting discipline, not a verifiable guarantee.
+
+\textbf{General hallucination-mitigation techniques target the wrong
+granularity for this problem.} Retrieval
+augmentation~\cite{lewis2020rag}, self-consistency voting across multiple
+samples~\cite{wang2023selfconsistency}, and learned fact-checking
+classifiers --- the mitigations most commonly proposed against
+hallucination~\cite{huang2023hallucination} --- are all built for open-domain factual question
+answering, where the model has to recall or retrieve a fact from a
+large, unbounded knowledge base. This project's extraction problem is
+narrower and more tractable than that: the value to be grounded is
+already sitting, in full, inside one specific document the model has
+already been shown in its own context window. The general literature
+does not distinguish this ``verify against a document already in
+context'' case from the harder open-domain case it was designed for,
+which leaves the specific, cheaper check this project actually relies on
+(Chapter~\ref{chap:implementation}) unaddressed by name.
+
+\textbf{The rare-fact-recall finding motivates a fix the literature does
+not itself supply.} Mallen et al.'s own proposed remedy is adaptive
+retrieval, which assumes an underlying corpus large and general enough to
+retrieve from. CBAM's regulatory default values do not fit that setting:
+they form a small, precisely-scoped, versioned table with a handful of
+dimensions (sector, route, country, validity period), not an open corpus.
+A lookup this constrained does not need retrieval-augmented generation at
+all --- a deterministic query answers it exactly, every time, with no
+retrieval-relevance uncertainty --- but the literature reviewed above
+never separates this bounded-lookup case from the general recall problem
+it studies.
+
+None of these three gaps rules out using a tool-using LLM for this task;
+each just means the general-purpose techniques in the literature need
+adapting, or replacing with a narrower, purpose-built mechanism, rather
+than applied as published. What remains is to state precisely where an
+agentic, tool-using LLM can be trusted, and where it cannot, for a task
+whose output is a real financial liability.
+
+% ─────────────────────────────────────────────
+\section{Problem Statement}
+
+This regulatory design has an asymmetric commercial consequence for
+exporters outside the EU. Tunisia exports steel, aluminium, and phosphate
+products to the European Union, and is directly affected by CBAM
+reporting requirements that originate on the EU-importer side: a
+Tunisian mill's own paperwork becomes an input to a foreign compliance
+pipeline, without any change on the exporter's part. That is why the
+extraction layer is built against realistic, heterogeneous document
+formats rather than a single clean template --- the documents an
+importer actually receives from a diverse supplier base are never
+uniform.
+
+\subsection*{The Compliance-Automation Dilemma}
+
+A CBAM declaration line requires combining several pieces of information
+that are rarely all present, in a consistent format, in a single
+document: a quantity, a production route, an exporting country, and
+either a measured emissions figure or a default value looked up from the
+versioned reference table described above. Reading and reconciling this
+information from real supplier paperwork is exactly the kind of
+unstructured-text task large language models are good at. The problem is
+what happens next --- the number that comes out the other end determines
+a \textit{real certificate liability}. An LLM that hallucinates a
+plausible-looking emissions figure, or silently drops a required field
+under multi-argument tool-call construction (both observed in this
+project's own evaluation, Section~\ref{sec:results_cbam}), produces a
+wrong compliance number that looks exactly like a correct one. Any
+system that lets a language model touch the arithmetic directly inherits
+that risk unconditionally.
+
+\subsection*{The Workflow-vs-Agent Gap}
+
+Most existing document-automation tooling --- scripted extraction
+pipelines with an LLM call bolted onto one step --- encodes a
+predetermined execution path: extract field A, then field B, then
+compute. This is brittle against the real variability of supplier
+documents, and it conflates two concerns that should really be kept
+separate: deciding what to do next given what has been read so far (a
+reasoning problem, suited to an LLM), and computing a number from
+validated inputs (a deterministic problem that must never depend on a
+model's judgment). Left unresolved, this conflation exposes a business
+to three compounding risks:
+
+\begin{itemize}[label=\textbullet]
+    \item \textbf{Silent numeric hallucination:} a fabricated emissions
+    value is indistinguishable, in the output, from a genuinely extracted
+    one, unless the system is explicitly designed to demand and verify
+    provenance.
+
+    \item \textbf{Brittleness to document variability:} a fixed step
+    sequence has no recovery strategy when an expected field is genuinely
+    absent from a given supplier's document, beyond failing the whole run.
+
+    \item \textbf{Silent drift against regulatory data:} default emission
+    values and benchmarks that are hardcoded, rather than versioned and
+    cited, become quietly wrong the moment an implementing act revises
+    them.
+\end{itemize}
+
+A system that wants to be robust to document variability, without also
+inheriting an LLM's arithmetic unreliability, has to separate these
+concerns architecturally rather than merely prompt around the risk. That
+is the precise problem this project is designed to solve.
+
+% ─────────────────────────────────────────────
+\section{Existing Methodologies for This Problem and Their Limits}
+\label{sec:related_work_cbam}
+
+Three families of existing approaches apply to this problem.
+
+\textbf{Robotic process automation (RPA).} RPA tools operate on the user
+interface of other systems the way a human operator would, replaying a
+recorded procedure~\cite{vanderaalst2018rpa}. They are fast and
+predictable on the exact layout they were built against, but the RPA
+literature itself lists brittleness to process and interface change among
+the field's open challenges~\cite{syed2020rpa}. Applied to supplier
+documents, a supplier reformatting a mill certificate can silently break
+every downstream field mapping, and the robot cannot tell ``this field is
+absent'' from ``this field moved.''
+
+\textbf{Learned document-understanding models.} Layout-aware models such as
+LayoutLM~\cite{xu2020layoutlm} and OCR-free models such as
+Donut~\cite{kim2022donut} extract fields from forms and receipts far more
+robustly than templates. They are, however, trained extractors: they
+require labelled training data for each document type, produce a single
+pass of predictions with no ability to ask for missing information, and
+have no notion of a downstream calculation they must stay separate from.
+No labelled CBAM corpus exists to train them on.
+
+\textbf{Generative LLM extraction.} Generative LLMs can extract structured
+fields from free text with little or no task-specific training, and this
+is now an active research area in its own right~\cite{xu2023genie}. Most
+such pipelines, however, apply one extraction call per document, with no
+iterative reasoning and no deterministic boundary between reading a value
+and computing with it; when a downstream figure is needed, it is often
+computed inside the same model call that did the reading. Tool-use
+benchmarks also show that open-weight models are markedly less reliable
+at multi-turn, instruction-following agent work than commercial
+ones~\cite{liu2024agentbench}, so published results obtained with large
+hosted models do not transfer directly to the small, locally hosted
+models a data-sovereign deployment would use. Finally, documents fed to
+an LLM are untrusted input: indirect prompt injection through processed
+content is a demonstrated attack on LLM-integrated
+applications~\cite{greshake2023injection}, which matters when the output
+is a regulatory figure.
+
+\begin{table}[H]
+\centering
+\setstretch{1.05}
+\begin{tabularx}{\textwidth}{|L{3.0cm}|X|X|}
+\hline
+\textbf{Aspect} & \textbf{Existing Approaches} & \textbf{This Project} \\
+\hline
+Execution model &
+Fixed pipeline or single-shot LLM call &
+Autonomous ReAct-style loop; model decides tool order/count at runtime \\
+\hline
+Compliance arithmetic &
+Often computed inline by the LLM or rigid template logic &
+Deterministic Python, zero LLM involvement, independently unit-tested \\
+\hline
+Regulatory data &
+Frequently hardcoded or embedded in prompts &
+Versioned reference table, never hardcoded, every value cited to a primary source \\
+\hline
+Hallucination defense &
+Rarely addressed explicitly &
+Multi-layer: plausibility bounds, untrusted-content framing, verbatim source-quote grounding \\
+\hline
+Model selection &
+Assumed from vendor/model-card claims &
+Empirically benchmarked, with a documented self-correction of an initial, biased ranking \\
+\hline
+\end{tabularx}
+\caption{Existing compliance-automation approaches vs.\ this project's design.}
+\label{tab:existing_vs_project}
+\end{table}
+\FloatBarrier
+
+Table~\ref{tab:existing_vs_project} positions this project's own choices
+against these limits directly. No widely available compliance-document
+tool separates extraction (agentic) from calculation (deterministic) as a
+first-class constraint; few publish a harness-matched benchmark of which
+locally-hostable model is reliable enough before committing to one; and
+CBAM's versioned, country/route-dependent default-value regime combined
+with an agentic extraction loop has, to the author's knowledge, no
+existing open implementation to compare against. This is the space the
+proposed solution below occupies.
+
+% ─────────────────────────────────────────────
+\section{Proposed Solution}
+
+This project resolves the gaps identified above architecturally, rather
+than by prompting around them. A deterministic, LLM-free calculation
+engine is kept categorically separate from a genuinely agentic tool-use
+loop for document extraction, and candidate models are benchmarked
+empirically against the project's own production validation logic ---
+rather than trusted on the strength of a published card, or a generic
+tool-calling benchmark whose scoring rule may not match how the real
+system actually consumes a model's output. Concretely, the project aims
+to design and implement a genuinely agentic tool-use system for CBAM
+declaration automation, paired with a deterministic
+compliance-calculation core. Three objectives guide its development:
+
+\begin{itemize}[label=\textbullet]
+    \item \textbf{O1.} Implement a deterministic, unit-tested calculation
+    engine for CBAM embedded emissions and certificate liability, with zero
+    involvement from any language model in producing the compliance number
+    itself.
+
+    \item \textbf{O2.} Design and implement a genuine agentic tool-use
+    loop --- the model decides its own tool-call order and count, with no
+    hardcoded step sequence in the orchestrating code --- for supplier
+    document extraction and reconciliation.
+
+    \item \textbf{O3.} Empirically benchmark candidate locally-hosted
+    language models for tool-calling reliability and end-to-end
+    field-extraction accuracy, rather than assuming capability from a
+    model's published card.
+\end{itemize}
+
+Two research questions guide the investigation:
+
+\begin{itemize}[label=\textbullet]
+    \item \textbf{RQ1.} How reliably can a small, locally-hosted language
+    model execute a self-directed, multi-step tool-use loop for structured
+    regulatory data extraction, and does a raw tool-calling benchmark
+    actually predict that reliability?
+
+    \item \textbf{RQ2.} What architectural and prompting safeguards are
+    needed to prevent a tool-using language model from corrupting a
+    compliance-critical numeric output, given that document text fed to
+    the model is untrusted external input?
+\end{itemize}
+
+The system covers \textbf{steel and aluminium imports only}
+(Annex~II's direct-emissions-only sectors), uses \textbf{synthetic
+supplier documents} (no real company data was available), and targets a
+\textbf{two-machine deployment} meshed over a private VPN. Real-time
+monitoring, sectors beyond steel/aluminium, and a production-grade
+multi-tenant deployment fall outside the scope of this project. As
+Table~\ref{tab:existing_vs_project} above summarises, each of these
+objectives answers a specific limitation of the existing approaches
+already reviewed, rather than a generic ambition to ``add AI'' to
+compliance work.
+
+% ─────────────────────────────────────────────
+\section{Conclusion}
+
+This chapter has situated the project at ninety. Startup House, reviewed
+CBAM's shift toward annual, versioned-data declarations together with the
+agentic-AI and hallucination literature it depends on, and shown where
+that literature falls short of the specific demands of a high-stakes
+numeric compliance task. It then formulated the resulting
+compliance-automation dilemma, reviewed the RPA-based and single-shot
+LLM approaches currently used against it and their shared limits, and
+presented this project's own objectives, research questions, and scope as
+a direct response to those limits. These constraints --- a deterministic
+core, a genuinely autonomous extraction loop, and an empirical model
+choice --- directly shape the design presented in the following chapter.

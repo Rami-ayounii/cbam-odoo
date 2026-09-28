@@ -1,0 +1,188 @@
+
+\documentclass[12pt, oneside, a4paper]{enetcom-pfe-report}
+\graphicspath{{images/}}
+\include{commands}
+
+\hypersetup{
+  pdftitle={\reportTitle~-~\reportSubject},
+  pdfauthor={\reportAuthor},
+  pdfsubject={\reportSubject},
+  pdfkeywords={report} {internship} {pfe} {enentcom}
+}
+
+\dominitoc
+
+\begin{document}
+    % report.cls defaults to \flushbottom, which stretches interline glue
+    % to force every page's last line onto the bottom margin -- with the
+    % longtable-based FR/NFR tables (chapter 2) that stretch concentrates
+    % into one large gap instead of spreading evenly, so pages end
+    % naturally instead.
+    \raggedbottom
+    % ============================================================
+    % TITLE PAGE
+    % Ported to match D:\Projects\Geo\PFA_Emna_Rami\Autres\autres.tex --
+    % the author's own prior ENET'Com PFE report (same school, same
+    % degree track, different project) -- rather than an invented
+    % design. Content fields swapped for this project's own via the
+    % existing \reportAuthor/\reportSubject/\ecole/\studyDepartment/
+    % \juryMemberOne commands (commands.tex). Two things that file
+    % referenced but never defined (a real bug there, confirmed by
+    % grepping its whole project for both): \defaultFont -- already
+    % defined by this cls itself (ptm/Times), so it "just works" here
+    % without needing a fix -- and the reportType color used only for
+    % the header rule, defined in commands.tex as an alias of this
+    % cls's own Gris1.
+    % ============================================================
+    \thispagestyle{empty}
+    \begin{titlepage}
+    \begin{center}
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % THE HEADER
+    % NOTE: the source file's tabularx+multirow(2) header produced a
+    % genuine row-height miscalculation in this font/package
+    % configuration (column 1's two-row text collided with itself no
+    % matter how the internal rule spacing was tuned -- confirmed by a
+    % red-rule diagnostic and by removing the rule entirely, which made
+    % the collision worse, not better, ruling out the rule itself as
+    % the cause). Same visual content and layout, rebuilt as three
+    % plain minipages instead of a 2-row multirow table -- the same
+    % robust approach already proven clean elsewhere on this page.
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    {\fontsize{9pt}{11pt}\selectfont%
+    \noindent
+    \begin{minipage}[c]{0.32\textwidth}
+    \centering
+    Republic of Tunisia\\
+    Ministry of Higher Education\\
+    and Scientific Research\\[4pt]
+    {\color{reportType}\rule{50pt}{0.75pt}}\\[4pt]
+    University of Sfax\\[4pt]
+    {\color{reportType}\rule{50pt}{0.75pt}}\\[4pt]
+    \ecole
+    \end{minipage}%
+    \begin{minipage}[c]{0.34\textwidth}
+    \centering
+    \includegraphics[width=4.6cm]{EnetCom.png}
+    \end{minipage}%
+    \begin{minipage}[c]{0.32\textwidth}
+    \centering
+    \textbf{Diploma in:}\\
+    \studyDepartment\\[10pt]
+    \textbf{Academic Year:}\\
+    2025-2026
+    \end{minipage}%
+    \par\vspace{4pt}
+    \noindent{\color{reportType}\rule{\textwidth}{0.75pt}}
+    }
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % THE PAGE CONTENT
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    \vspace{6pt} {%
+      \fontsize{36pt}{36pt}\selectfont%
+      Internship Report\\%
+    }
+
+    \vspace{26pt}%
+    \textbf{\textit{Presented at}}\\
+
+    \vspace{1pt}{%
+      \fontsize{16pt}{16pt}\selectfont%
+      \textbf{\ecole\\}
+    }
+
+    \vspace{24pt}
+    \renewcommand*{\familydefault}{\defaultFont}
+    \fontsize{14pt}{14pt}\selectfont%
+    \textbf{National Engineering Diploma in:\\ \textit{\studyDepartment}\\}
+
+    \vspace{28pt}
+    \textbf{\textit{by}}\\
+    \vspace{10pt} {%
+      \fontsize{18pt}{18pt}\selectfont%
+      \textbf{\reportAuthor}\\
+    }%
+
+    \vspace{28pt} {%
+      \begin{spacing}{0.05}
+        \rule{200pt}{2pt}\\
+        \rule{200pt}{0.75pt}\\
+      \end{spacing}
+      \fontsize{17pt}{17pt}\selectfont%
+      \vspace{20pt}
+      \textbf{\reportSubject\\}
+
+      \vspace{10pt}
+      \begin{spacing}{0.05}
+        \rule{200pt}{0.75pt}\\
+        \rule{200pt}{2pt}\\
+      \end{spacing}
+    }
+
+    \vspace{28pt}
+    \juryMemberOneDesc: \juryMemberOne
+
+    \vspace{30pt}
+    Project carried out at\\[10pt]
+    \includegraphics[width=9cm]{ninety-logo.png}
+
+    \vfill
+    \noindent{\color{reportType}\rule{\textwidth}{2pt}}
+
+    \end{center}
+    \end{titlepage}
+
+    \doublespacing
+    \pagenumbering{Roman}
+    \setcounter{page}{1}
+
+    \input{config/acknowledgement}
+
+    \input{config/abstract}
+
+    \addtocontents{toc}{\protect\thispagestyle{MyStyle}}
+    \renewcommand*\contentsname{Table of Contents}
+    \begin{spacing}{1}
+    \tableofcontents
+    \end{spacing}
+    \clearpage
+
+    \addtocontents{lof}{\protect\thispagestyle{MyStyle}}
+    \begin{spacing}{1}
+    \listoffigures
+    \end{spacing}
+    \addcontentsline{toc}{chapter}{\listfigurename}
+    \adjustmtc
+
+    \addtocontents{lof}{\protect\thispagestyle{MyStyle}}
+    \begin{spacing}{1}
+    \listoftables
+    \end{spacing}
+    \addcontentsline{toc}{chapter}{\listtablename}
+    \adjustmtc
+    
+    \input{config/acronyms}
+
+    \pagenumbering{arabic}
+    \setcounter{page}{1}
+    \input{config/general_introduction}
+    
+    \input{chapitres/chapter_1}
+
+    \input{chapitres/chapter_2}
+
+    \input{chapitres/chapter_3}
+
+    \input{config/general_conclusion}
+
+    \addtocontents{lof}{\protect\thispagestyle{MyStyle}}
+    \begin{spacing}{1}
+    \bibliographystyle{unsrtnat}
+    \bibliography{biblio}
+    \end{spacing}
+    \addcontentsline{toc}{chapter}{\bibname}
+    \adjustmtc
+\end{document}
